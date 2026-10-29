@@ -292,7 +292,9 @@ function renderWeightChart(person) {
 }
 
 function showPage() {
-  const id = ['progress','overall','nutrition','health','past'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'progress';
+  const target = location.hash.slice(1);
+  if (target === 'kandungan') return;
+  const id = ['progress','overall','nutrition','health','past'].includes(target) ? target : 'progress';
   document.querySelectorAll('[data-view]').forEach(view => { view.hidden = view.dataset.view !== id; });
   document.querySelectorAll('[data-page]').forEach(link => {
     if (link.dataset.page === id) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');

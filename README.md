@@ -86,3 +86,7 @@ Upload menerima maksimum dua fail PDF, PNG, JPG atau WEBP, 1 MB setiap fail, den
 ## Cabaran lepas
 
 Rekod TEFOC 2020 yang tersedia dipaparkan berasingan berdasarkan tarikh 1 November–15 Disember 2020. Paparan ini berasal daripada data peserta semasa dalam pelayar; simpan arkib untuk salinan tetap. Borang arkib menyalin keputusan semua peserta hingga tarikh tamat yang dipilih (termasuk rekod kesihatan sehingga tarikh tersebut), tanpa memadam rekod semasa. Arkib tersimpan di kunci localStorage berasingan `jom-kurus:archives:v1`. Pilih Lihat keputusan dan klik nama peserta untuk membuka rekod mingguan. Eksport arkib menghasilkan JSON cabaran berasingan; fail arkib bukan format import peserta dan pemulihan arkib melalui UI belum disediakan.
+
+## Banner utama
+
+Banner besar menggunakan imej gim janaan AI yang dibundel dalam `public/assets/gym-banner.png`, dengan lelaki dewasa sedang bersenam dan lapisan gelap supaya teks jelas. Tiada permintaan imej luaran diperlukan. Panel Data & kategori telah dibuang; penapis Dewasa/Junior berada pada leaderboard dan kawalan sandaran tersedia dalam bahagian boleh buka di footer.

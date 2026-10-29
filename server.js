@@ -6,6 +6,7 @@ const files = new Map([
   ['/styles.css', ['styles.css', 'text/css; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/model.js', ['model.js', 'text/javascript; charset=utf-8']],
+  ['/assets/gym-banner.png', ['assets/gym-banner.png', 'image/png']],
   ['/tefoc-data.json', ['../local-data/tefoc-2020.json', 'application/json; charset=utf-8']],
 ]);
 const port = Number(process.env.PORT || 3000);
