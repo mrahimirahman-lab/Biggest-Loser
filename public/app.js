@@ -11,11 +11,20 @@ let attachmentsChanged = false;
 let carouselIndex = 0;
 let carouselTimer = null;
 let activeArchiveId = null;
+let noticeTimer = null;
 const labLabels = { glucose: 'Glukosa (mmol/L)', systolic: 'Sistolik (mmHg)', diastolic: 'Diastolik (mmHg)', totalCholesterol: 'Jumlah kolesterol (mmol/L)', hdl: 'HDL (mmol/L)', ldl: 'LDL (mmol/L)', uricAcid: 'Asid urik (µmol/L)', creatinine: 'Kreatinin (µmol/L)' };
 function notice(message, error = false) {
-  $('notice').textContent = message;
-  $('notice').className = error ? 'error' : '';
-  $('notice').hidden = false;
+  clearTimeout(noticeTimer);
+  const root = $('notice');
+  const close = element('button', '×', 'notice-close');
+  close.type = 'button';
+  close.setAttribute('aria-label', 'Tutup notifikasi');
+  close.addEventListener('click', () => { clearTimeout(noticeTimer); root.hidden = true; });
+  root.replaceChildren(element('span', message, 'notice-message'), close);
+  root.className = error ? 'error' : '';
+  root.setAttribute('role', error ? 'alert' : 'status');
+  root.hidden = false;
+  noticeTimer = setTimeout(() => { root.hidden = true; }, error ? 12000 : 6000);
 }
 try {
   const saved = localStorage.getItem(key);
@@ -552,9 +561,7 @@ $('sponsor-form').addEventListener('submit',event=>{
 
 function renderSidebar() {
   const session=currentSession(),person=session || people.find(p=>p.id===$('profile-person').value) || people.find(p=>p.id===selected);
-  $('sidebar-profile').hidden=!session;
   const initials = p => p.name.trim().split(/\s+/).map(word=>word[0]).slice(0,2).join('').toLocaleUpperCase('ms');
-  if(session){$('sidebar-avatar').textContent=initials(session);$('sidebar-name').textContent=session.name;$('sidebar-category').textContent=`${session.category||'Dewasa'} · sesi aktif`;}
   $('mini-avatar').textContent=person?initials(person):'?';$('mini-name').textContent=person?.name||'Pilih profil';$('mini-category').textContent=person?`${person.category||'Dewasa'} · ${session?'sesi aktif':'profil dipilih'}`:'Tiada sesi aktif';
   $('sidebar-session').textContent=session?'Log Keluar':'Log Masuk';
   const goal=person?targetProgress(person):null;
