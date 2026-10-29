@@ -22,7 +22,7 @@ http.createServer(async (req, res) => {
     res.writeHead(200, {
       'Content-Type': file[1], 'Cache-Control': 'no-cache',
       'X-Content-Type-Options': 'nosniff',
-      'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+      'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
     });
     res.end(req.method === 'HEAD' ? undefined : body);
   } catch (error) { res.writeHead(error.code === 'ENOENT' ? 404 : 500).end('Gagal memuatkan aplikasi'); }

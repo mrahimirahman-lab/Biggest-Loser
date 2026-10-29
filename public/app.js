@@ -96,6 +96,7 @@ function render() {
   renderHistory();
   renderWeekOptions();
   renderArchives();
+  renderHome();
 }
 function renderHistory() {
   const person = people.find(p => p.id === selected), root = $('history');
@@ -294,7 +295,7 @@ function renderWeightChart(person) {
 function showPage() {
   const target = location.hash.slice(1);
   if (target === 'kandungan') return;
-  const id = ['progress','overall','nutrition','health','past'].includes(target) ? target : 'progress';
+  const id = ['home','sponsor','profile','notifications','progress','overall','nutrition','health','past'].includes(target) ? target : 'home';
   document.querySelectorAll('[data-view]').forEach(view => { view.hidden = view.dataset.view !== id; });
   document.querySelectorAll('[data-page]').forEach(link => {
     if (link.dataset.page === id) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
@@ -394,4 +395,115 @@ $('archive-form').addEventListener('submit',event=>{
     const archives=archiveData();archives.push({id:crypto.randomUUID(),name,end,people:JSON.parse(JSON.stringify(snapshot))});
     localStorage.setItem('jom-kurus:archives:v1',JSON.stringify(archives));renderArchives();notice('Keputusan cabaran disalin ke arkib. Rekod semasa dikekalkan.');
   } catch(error){notice(error.message,true);}
+});
+
+function readList(key) {
+  const value = JSON.parse(localStorage.getItem(key) || '[]');
+  if (!Array.isArray(value)) throw Error('Data tersimpan tidak sah. Data asal tidak ditimpa.');
+  return value;
+}
+function fillPeople(id, value = '') {
+  $(id).replaceChildren(new Option('Pilih peserta', ''));
+  people.forEach(p => $(id).add(new Option(p.name, p.id)));
+  if (people.some(p => p.id === value)) $(id).value = value;
+}
+function currentSession() {
+  try { return people.find(p => p.id === sessionStorage.getItem('jom-kurus:session')); } catch { return null; }
+}
+function renderHome() {
+  $('home-category').value = $('category').value;
+  const ranked = leaderboard(people.filter(p => (p.category || 'Dewasa') === $('home-category').value));
+  $('home-podium').replaceChildren(...[...$('podium').children].map(node => node.cloneNode(true)));
+  $('home-empty').hidden = ranked.length > 0;
+  const session = currentSession();
+  $('session-button').textContent = session ? 'Logout' : 'Login';
+  $('session-button').setAttribute('aria-label', session ? `Logout ${session.name}` : 'Login peserta');
+  for (const id of ['activity-person','profile-person','login-person']) fillPeople(id, $(id).value || session?.id || '');
+  renderProfile();
+  try { renderActivities(); } catch(error) { $('activity-gallery').replaceChildren(element('p',error.message,'hint')); }
+  try { renderSponsors(); } catch(error) { $('sponsor-list').replaceChildren(element('p',error.message,'hint')); }
+  const records = people.flatMap(person => person.entries.slice(1).map(entry => ({name:person.name,...entry}))).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+  $('notification-count').textContent = records.length;
+  $('notification-list').replaceChildren();
+  if (!records.length) $('notification-list').append(element('p','Belum ada kemas kini berat.','hint'));
+  records.forEach(record => {
+    const card = element('article',undefined,'notification-card');
+    card.append(element('h3',`${record.name} · rekod berat`),element('p',`${record.date} — ${number(record.weight)} kg`));
+    $('notification-list').append(card);
+  });
+}
+$('home-category').addEventListener('change',()=>{ $('category').value=$('home-category').value; selected=null; render(); });
+$('session-button').addEventListener('click',()=>{
+  if (currentSession()) { sessionStorage.removeItem('jom-kurus:session'); renderHome(); notice('Sesi profil ditamatkan. Data peranti dikekalkan.'); }
+  else { fillPeople('login-person'); $('login-dialog').showModal(); }
+});
+$('close-login').addEventListener('click',()=>$('login-dialog').close());
+$('login-form').addEventListener('submit',event=>{
+  event.preventDefault();const person=people.find(p=>p.id===$('login-person').value);
+  if(!person)return;
+  try { sessionStorage.setItem('jom-kurus:session',person.id); $('login-dialog').close(); $('profile-person').value=person.id;renderHome();location.hash='profile';notice(`Selamat datang, ${person.name}. Sesi profil peranti ini aktif.`); }
+  catch { notice('Pelayar tidak membenarkan penyimpanan sesi.',true); }
+});
+function renderProfile() {
+  const person=people.find(p=>p.id===$('profile-person').value), root=$('profile-summary');root.replaceChildren();
+  $('profile-name').value=person?.name||'';$('profile-height').value=person?.height??'';
+  $('open-personal-progress').disabled=!person;
+  if(!person){root.textContent='Pilih peserta atau gunakan Login untuk membuka profil.';return;}
+  const m=metrics(person),result=bmi(person);
+  root.append(element('strong',person.name),element('p',`Kategori: ${person.category||'Dewasa'}`),element('p',`Berat awal ${number(m.initial)} kg → terkini ${number(m.current)} kg`),element('p',result?`BMI ${number(result.value)} · ${result.category}`:'Isi tinggi untuk melihat BMI.'),element('p',`${person.entries.length} rekod berat tersimpan`));
+}
+$('profile-person').addEventListener('change',renderProfile);
+$('profile-form').addEventListener('submit',event=>{
+  event.preventDefault();const person=people.find(p=>p.id===$('profile-person').value);if(!person){notice('Pilih peserta dahulu.',true);return;}
+  const name=$('profile-name').value.trim(),next={...person,name};
+  if($('profile-height').value!=='')next.height=Number($('profile-height').value);else delete next.height;
+  if(!validateParticipant(next)){notice('Semak nama dan tinggi (80–250 cm).',true);return;}
+  if(people.some(p=>p.id!==person.id&&p.name.toLocaleLowerCase('ms')===name.toLocaleLowerCase('ms'))){notice('Nama peserta ini sudah digunakan.',true);return;}
+  if(save(people.map(p=>p.id===person.id?next:p)))notice('Profil peserta dikemas kini.');
+});
+$('open-personal-progress').addEventListener('click',()=>{
+  selected=$('profile-person').value;const person=people.find(p=>p.id===selected);if(!person)return;
+  $('category').value=person.category||'Dewasa';render();$('participant').value=selected;renderWeekOptions();location.hash='progress';
+});
+function renderActivities() {
+  const root=$('activity-gallery');root.replaceChildren();const activities=readList('jom-kurus:activities:v1');
+  if(!activities.length){const empty=element('div',undefined,'gallery-empty');empty.append(element('strong','Aktiviti anda bermula di sini'),element('p','Kongsi gambar senaman, berjalan atau menu sihat. Tiada gambar peserta ditambah tanpa upload.'));root.append(empty);return;}
+  for(const activity of [...activities].reverse()){
+    if(!activity || typeof activity.data!=='string' || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(activity.data))continue;
+    const card=element('figure',undefined,'activity-card'),image=element('img');image.src=activity.data;image.alt=activity.caption;image.loading='lazy';
+    const person=people.find(p=>p.id===activity.personId);card.append(image,element('figcaption',activity.caption),element('p',`${person?.name||'Peserta terdahulu'} · ${activity.date}`));
+    const remove=element('button','Padam gambar','secondary');remove.type='button';remove.addEventListener('click',()=>{
+      if(!confirm('Padam gambar aktiviti ini?'))return;
+      try{localStorage.setItem('jom-kurus:activities:v1',JSON.stringify(activities.filter(a=>a.id!==activity.id)));renderActivities();}catch{notice('Gagal memadam gambar.',true);}
+    });card.append(remove);root.append(card);
+  }
+}
+$('activity-form').addEventListener('submit',async event=>{
+  event.preventDefault();const submit=$('activity-form').querySelector('button[type="submit"]');submit.disabled=true;
+  try{
+    const person=people.find(p=>p.id===$('activity-person').value),file=$('activity-photo').files[0],caption=$('activity-caption').value.trim();
+    if(!person||!caption)throw Error('Pilih peserta dan isi kapsyen.');
+    if(!file||file.size===0||file.size>512000||!['image/png','image/jpeg','image/webp'].includes(file.type))throw Error('Pilih gambar PNG/JPG/WEBP maksimum 500 KB.');
+    const bitmap=await createImageBitmap(file);bitmap.close();
+    const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Gagal membaca gambar.'));reader.readAsDataURL(file);});
+    const activities=readList('jom-kurus:activities:v1');if(activities.length>=8)throw Error('Galeri sudah mempunyai 8 gambar. Padam gambar lama dahulu.');
+    activities.push({id:crypto.randomUUID(),personId:person.id,caption,date:today(),data});
+    localStorage.setItem('jom-kurus:activities:v1',JSON.stringify(activities));$('activity-form').reset();renderActivities();notice('Gambar aktiviti berjaya disimpan.');
+  }catch(error){notice(error.name==='QuotaExceededError'?'Ruang pelayar penuh. Gambar belum disimpan.':error.message,true);}
+  finally{submit.disabled=false;}
+});
+function renderSponsors(){
+  const root=$('sponsor-list');root.replaceChildren();const sponsors=readList('jom-kurus:sponsors:v1');
+  if(!sponsors.length){root.append(element('p','Belum ada penaja berdaftar.','hint'));return;}
+  for(const sponsor of sponsors){
+    const card=element('article',undefined,'sponsor-card');card.append(element('h3',sponsor.name));
+    if(sponsor.url){try{const url=new URL(sponsor.url);if(['https:','http:'].includes(url.protocol)){const link=element('a','Laman web penaja');link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';card.append(link);}}catch{}}
+    const remove=element('button','Padam','secondary');remove.type='button';remove.addEventListener('click',()=>{if(!confirm('Padam penaja ini?'))return;try{localStorage.setItem('jom-kurus:sponsors:v1',JSON.stringify(sponsors.filter(s=>s.id!==sponsor.id)));renderSponsors();}catch{notice('Gagal menyimpan perubahan.',true);}});card.append(element('p',''),remove);root.append(card);
+  }
+}
+$('sponsor-form').addEventListener('submit',event=>{
+  event.preventDefault();try{
+    const name=$('sponsor-name').value.trim(),raw=$('sponsor-url').value.trim();if(!name)throw Error('Isi nama penaja.');let url='';if(raw){const parsed=new URL(raw);if(!['https:','http:'].includes(parsed.protocol))throw Error('Gunakan URL https atau http.');url=parsed.href;}
+    const sponsors=readList('jom-kurus:sponsors:v1');sponsors.push({id:crypto.randomUUID(),name,url});localStorage.setItem('jom-kurus:sponsors:v1',JSON.stringify(sponsors));$('sponsor-form').reset();renderSponsors();notice('Penaja disimpan.');
+  }catch(error){notice(error.message,true);}
 });

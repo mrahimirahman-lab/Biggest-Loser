@@ -90,3 +90,13 @@ Rekod TEFOC 2020 yang tersedia dipaparkan berasingan berdasarkan tarikh 1 Novemb
 ## Banner utama
 
 Banner besar menggunakan imej gim janaan AI yang dibundel dalam `public/assets/gym-banner.png`, dengan lelaki dewasa sedang bersenam dan lapisan gelap supaya teks jelas. Tiada permintaan imej luaran diperlukan. Panel Data & kategori telah dibuang; penapis Dewasa/Junior berada pada leaderboard dan kawalan sandaran tersedia dalam bahagian boleh buka di footer.
+
+## Susunan Home dan navigasi atas
+
+Banner berada dalam bingkai putih, dengan Login/Logout di kanan atas dan Home, Sponsor, Profile, Notification di bawah. Menu kiri mengekalkan lima modul. Home memaparkan Top 5 dan galeri gambar aktiviti peserta. Palet header: teal `#0F766E`, gradient `#0D9488` ke `#059669`, aksen mint `#5EEAD4`, dan latar gelap `#0F172A`.
+
+Login ialah pemilihan profil dalam `sessionStorage`, bukan pengesahan akaun. Tiada kata laluan, pelayan login, kawalan akses atau sekatan melihat profil orang lain. Logout menamatkan sesi profil tanpa memadam rekod peranti. Profile boleh menyunting nama/tinggi dan membuka sejarah mingguan peserta.
+
+Sponsor membolehkan penganjur menyimpan nama dan pautan penaja setempat; tiada penaja rekaan dimasukkan. Notification memaparkan lima rekod berat bertarikh terkini daripada data pelayar; tiada push notification atau mesej dihantar.
+
+Galeri menerima PNG/JPG/WEBP sehingga 500 KB setiap gambar dan maksimum 8 gambar. Gambar diperiksa melalui dekoder imej pelayar sebelum disimpan. Nama peserta dan kapsyen dipaparkan bersama gambar; padam memerlukan pengesahan. Galeri (`jom-kurus:activities:v1`) dan penaja (`jom-kurus:sponsors:v1`) disimpan berasingan daripada eksport peserta dan belum mempunyai fungsi import/eksport tersendiri. Semua data setempat berkongsi had storan pelayar; kegagalan menyimpan dipaparkan tanpa menimpa rekod lama.
