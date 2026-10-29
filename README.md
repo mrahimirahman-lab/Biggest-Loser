@@ -47,6 +47,12 @@ Data Excel pengguna tidak disertakan dalam kod GitHub. Dataset setempat disajika
 
 ## Dashboard kesihatan
 
-Leaderboard ialah modul pertama, dengan tiga peserta teratas dan senarai lengkap mengikut kategori. Pautan modul membawa ke kemas kini berat, status keseluruhan, tips kesihatan/pemakanan dan rekod kesihatan. Status menggunakan data sebenar kategori yang dipilih, bukan sasaran aktiviti rekaan.
+Reka bentuk Cabaran Jom Kurus memaparkan carta Top 5 dan jadual kemajuan mengikut kategori. Pada desktop, borang terletak di kiri dan keputusan di kanan; pada telefon, keputusan dipaparkan dahulu. Pautan modul membawa ke kemas kini berat, status keseluruhan, tips kesihatan/pemakanan dan rekod kesihatan. Status menggunakan data sebenar kategori yang dipilih, bukan sasaran aktiviti rekaan.
 
 Dalam Rekod kesihatan, pilih peserta dan simpan tidur (jam), aktiviti (minit), air (liter) atau catatan. Nilai kosong tidak dianggap sifar. Rekod boleh disunting dan satu rekod disimpan bagi setiap tarikh. Rekod ini turut disertakan dalam eksport/import JSON dan dipadam jika peserta dipadam. Data lama tanpa rekod kesihatan masih disokong. Data kekal setempat dalam pelayar; eksport sandaran secara berkala. Tiada data tidur, aktiviti atau pemakanan direka daripada fail Excel.
+
+## Rekod mingguan
+
+Jadual M1–M8 menunjukkan turutan rekod selepas berat awal dan tarikh asal setiap rekod. Lebih lapan rekod akan menambah lajur secara automatik. Ini mengelakkan andaian bahawa semua penimbangan dibuat tepat setiap tujuh hari. Pilihan M dalam borang mengisi tarikh dan berat rekod sedia ada untuk suntingan. Slot baharu mencadangkan tarikh tujuh hari selepas tarikh mula bagi setiap nombor minggu; semak tarikh sebelum simpan, atau pilih tarikh manual. Tarikh akan datang tidak boleh disimpan. Gunakan skrol mendatar untuk melihat semua lajur jadual.
+
+Reka bentuk ini menggunakan CSS setempat; tiada kebergantungan pada Tailwind CDN atau Google Fonts. Data contoh dalam HTML rujukan tidak dimasukkan ke dalam peserta sebenar.

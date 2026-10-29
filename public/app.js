@@ -38,10 +38,14 @@ function render() {
   const visible = people.filter(p => (p.category || 'Dewasa') === $('category').value);
   const ranked = leaderboard(visible);
   $('podium').replaceChildren();
-  ranked.slice(0, 3).forEach((person, index) => {
-    const card = element('article', undefined, 'podium-card');
-    card.append(element('span', String(index + 1), 'podium-place'), element('h3', person.name), element('strong', `${number(metrics(person).percent)}%`), element('p', 'Penurunan berat'));
-    $('podium').append(card);
+  ranked.slice(0, 5).forEach((person, index) => {
+    const m = metrics(person), row = element('li', undefined, 'leader-row');
+    const info = element('div', undefined, 'leader-info');
+    info.append(element('h3', person.name), element('p', `${number(m.initial)} kg → ${number(m.current)} kg`));
+    const score = element('div', undefined, 'leader-score');
+    score.append(element('strong', `${number(m.percent)}%`), element('small', m.lost >= 0 ? `Turun ${number(m.lost)} kg` : `Naik ${number(-m.lost)} kg`));
+    row.append(element('span', String(index + 1), 'place'), info, score);
+    $('podium').append(row);
   });
   const lastDate = visible.flatMap(p => p.entries.map(e => e.date)).sort().at(-1);
   $('latest-record').textContent = lastDate ? `Rekod berat terkini: ${lastDate}` : 'Belum ada rekod berat.';
@@ -54,6 +58,8 @@ function render() {
   $('rank-table').hidden = visible.length === 0;
   $('export').disabled = people.length === 0;
   $('rankings').replaceChildren();
+  const slots = Math.max(8, ...visible.map(p => p.entries.length - 1));
+  $('progress-head').replaceChildren(...['Peserta', 'Berat Awal', 'Terkini', ...Array.from({ length: slots }, (_, i) => `M${i + 1}`), 'Jumlah Turun'].map(label => element('th', label)));
   const previous = $('participant').value;
   $('participant').replaceChildren(new Option('Pilih peserta', ''));
   visible.forEach(p => $('participant').add(new Option(p.name, p.id)));
@@ -65,14 +71,20 @@ function render() {
     const m = metrics(p), row = element('tr'), name = element('td');
     const button = element('button', p.name, 'person');
     button.type = 'button';
-    button.addEventListener('click', () => { selected = p.id; $('health-form').reset(); $('health-date').value = today(); $('participant').value = p.id; $('health-participant').value = p.id; renderHistory(); $('rekod').scrollIntoView({ block: 'start' }); });
+    button.addEventListener('click', () => { selected = p.id; $('health-form').reset(); $('health-date').value = today(); $('participant').value = p.id; renderWeekOptions(); $('health-participant').value = p.id; renderHistory(); $('rekod').scrollIntoView({ block: 'start' }); });
     name.append(element('span', String(i + 1).padStart(2, '0'), 'rank'), button);
-    row.append(name, element('td', `${number(m.initial)} kg`), element('td', `${number(m.current)} kg`),
-      element('td', `${m.lost < 0 ? '+' : '−'}${number(Math.abs(m.lost))} kg`, m.lost >= 0 ? 'positive' : 'negative'),
-      element('td', `${number(m.percent)}%`, m.percent >= 0 ? 'positive' : 'negative'));
+    const datedCell = entry => {
+      const cell = element('td', entry ? `${number(entry.weight)} kg` : '—');
+      if (entry) cell.append(element('small', entry.date));
+      return cell;
+    };
+    row.append(name, datedCell(p.entries[0]), datedCell(p.entries.at(-1)));
+    for (let index = 1; index <= slots; index++) row.append(datedCell(p.entries[index]));
+    row.append(element('td', `${m.lost < 0 ? '+' : '−'}${number(Math.abs(m.lost))} kg`, m.lost >= 0 ? 'positive' : 'negative'));
     $('rankings').append(row);
   });
   renderHistory();
+  renderWeekOptions();
 }
 function renderHistory() {
   const person = people.find(p => p.id === selected), root = $('history');
@@ -106,7 +118,7 @@ $('participant-form').addEventListener('submit', event => {
   if (people.some(p => p.name.toLocaleLowerCase('ms') === name.toLocaleLowerCase('ms'))) { notice('Nama ini sudah didaftarkan. Gunakan nama yang berbeza.', true); return; }
   $('category').value = person.category;
   if (save([...people, person])) {
-    $('participant-form').reset(); $('start-date').value = today(); $('participant').value = person.id;
+    $('participant-form').reset(); $('start-date').value = today(); $('participant').value = person.id; renderWeekOptions();
     notice(`${name} berjaya didaftarkan.`);
   }
 });
@@ -193,3 +205,28 @@ $('health-form').addEventListener('submit', event => {
     }
   } catch (error) { notice(error.message, true); }
 });
+
+function renderWeekOptions() {
+  const person = people.find(p => p.id === $('participant').value);
+  $('record-week').replaceChildren(new Option('Pilih tarikh secara manual', ''));
+  if (!person) return;
+  for (let week = 1; week <= Math.max(8, person.entries.length - 1); week++) {
+    let date = person.entries[week]?.date;
+    if (!date) {
+      const start = new Date(`${person.entries[0].date}T12:00:00Z`);
+      start.setUTCDate(start.getUTCDate() + week * 7);
+      date = start.toISOString().slice(0, 10);
+    }
+    const option = new Option(`M${week} · ${date}${person.entries[week] ? ' (sunting)' : ''}`, date);
+    option.disabled = date > today();
+    $('record-week').add(option);
+  }
+}
+$('participant').addEventListener('change', renderWeekOptions);
+$('record-week').addEventListener('change', () => {
+  if (!$('record-week').value) return;
+  $('record-date').value = $('record-week').value;
+  const person = people.find(p => p.id === $('participant').value);
+  $('weight').value = person?.entries.find(e => e.date === $('record-week').value)?.weight ?? '';
+});
+$('record-date').addEventListener('input', () => { $('record-week').value = ''; });
