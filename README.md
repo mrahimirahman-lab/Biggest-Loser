@@ -44,3 +44,9 @@ Butang **Import data JSON** menerima format yang sama seperti eksport aplikasi. 
 Untuk dataset awal setempat, letakkan JSON dalam `local-data/tefoc-2020.json`. Fail ini diabaikan Git dan dimuatkan sekali secara automatik jika pelayar belum mempunyai data tersimpan. Pelayar yang sudah mempunyai data perlu menggunakan import JSON; data sedia ada tidak diganti secara automatik. Memadam semua peserta tidak akan mencetuskan import semula.
 
 Data Excel pengguna tidak disertakan dalam kod GitHub. Dataset setempat disajikan kepada pelayar yang boleh mengakses pelayan ini; jangan dedahkan pelayan kepada orang ramai jika dataset peribadi berada di dalamnya. Hentikan pelayan sebelum memindahkan fail tersebut ke hosting awam.
+
+## Dashboard kesihatan
+
+Leaderboard ialah modul pertama, dengan tiga peserta teratas dan senarai lengkap mengikut kategori. Pautan modul membawa ke kemas kini berat, status keseluruhan, tips kesihatan/pemakanan dan rekod kesihatan. Status menggunakan data sebenar kategori yang dipilih, bukan sasaran aktiviti rekaan.
+
+Dalam Rekod kesihatan, pilih peserta dan simpan tidur (jam), aktiviti (minit), air (liter) atau catatan. Nilai kosong tidak dianggap sifar. Rekod boleh disunting dan satu rekod disimpan bagi setiap tarikh. Rekod ini turut disertakan dalam eksport/import JSON dan dipadam jika peserta dipadam. Data lama tanpa rekod kesihatan masih disokong. Data kekal setempat dalam pelayar; eksport sandaran secara berkala. Tiada data tidur, aktiviti atau pemakanan direka daripada fail Excel.

@@ -39,3 +39,18 @@ test('JSON import validates category and never overwrites existing participants'
   assert.throws(() => mergeImport([p], [p]));
   assert.equal(mergeImport([], [p]).length, 1);
 });
+
+test('health records validate optional values and replace same-date entries without losing weight history', async () => {
+  const { recordHealth } = await import('../public/model.js');
+  const p = person('Example', 80, 78);
+  const entry = { date: '2025-01-09', sleep: 7.5, activity: 30, water: 2, notes: 'Berjalan' };
+  const result = recordHealth(p, entry);
+  assert.equal(validateParticipant(result), true);
+  assert.deepEqual(result.entries, p.entries);
+  assert.equal(recordHealth(result, { ...entry, sleep: 8 }).health.length, 1);
+  assert.equal(recordHealth(result, { ...entry, sleep: 8 }).health[0].sleep, 8);
+  assert.throws(() => recordHealth(p, { ...entry, sleep: 25 }));
+  assert.throws(() => recordHealth(p, { ...entry, activity: 1.5 }));
+  assert.throws(() => recordHealth(p, { date: entry.date, sleep: null, water: null, activity: null, notes: '' }));
+  assert.equal(validateParticipant({ ...p, health: [{ ...entry, water: -1 }] }), false);
+});

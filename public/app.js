@@ -1,4 +1,4 @@
-import { today, validateParticipant, metrics, leaderboard, recordWeight, parseImport, mergeImport } from './model.js';
+import { today, validateParticipant, metrics, leaderboard, recordWeight, parseImport, mergeImport, recordHealth } from './model.js';
 const $ = id => document.getElementById(id);
 const key = 'biggest-loser:v1';
 let people = [];
@@ -36,6 +36,15 @@ function element(tag, text, className) {
 }
 function render() {
   const visible = people.filter(p => (p.category || 'Dewasa') === $('category').value);
+  const ranked = leaderboard(visible);
+  $('podium').replaceChildren();
+  ranked.slice(0, 3).forEach((person, index) => {
+    const card = element('article', undefined, 'podium-card');
+    card.append(element('span', String(index + 1), 'podium-place'), element('h3', person.name), element('strong', `${number(metrics(person).percent)}%`), element('p', 'Penurunan berat'));
+    $('podium').append(card);
+  });
+  const lastDate = visible.flatMap(p => p.entries.map(e => e.date)).sort().at(-1);
+  $('latest-record').textContent = lastDate ? `Rekod berat terkini: ${lastDate}` : 'Belum ada rekod berat.';
   $('total').textContent = visible.length;
   const data = visible.map(metrics);
   $('source-note').textContent = visible.some(p => p.source) ? 'TEFOC 2020 · 1 November–15 Disember 2020. Ringkasan mengikut kategori dipilih.' : 'Ringkasan mengikut kategori dipilih.';
@@ -49,11 +58,14 @@ function render() {
   $('participant').replaceChildren(new Option('Pilih peserta', ''));
   visible.forEach(p => $('participant').add(new Option(p.name, p.id)));
   if (people.some(p => p.id === previous)) $('participant').value = previous;
+  $('health-participant').replaceChildren(new Option('Pilih peserta', ''));
+  visible.forEach(p => $('health-participant').add(new Option(p.name, p.id)));
+  if (visible.some(p => p.id === selected)) $('health-participant').value = selected;
   leaderboard(visible).forEach((p, i) => {
     const m = metrics(p), row = element('tr'), name = element('td');
     const button = element('button', p.name, 'person');
     button.type = 'button';
-    button.addEventListener('click', () => { selected = p.id; $('participant').value = p.id; renderHistory(); });
+    button.addEventListener('click', () => { selected = p.id; $('health-form').reset(); $('health-date').value = today(); $('participant').value = p.id; $('health-participant').value = p.id; renderHistory(); $('rekod').scrollIntoView({ block: 'start' }); });
     name.append(element('span', String(i + 1).padStart(2, '0'), 'rank'), button);
     row.append(name, element('td', `${number(m.initial)} kg`), element('td', `${number(m.current)} kg`),
       element('td', `${m.lost < 0 ? '+' : '−'}${number(Math.abs(m.lost))} kg`, m.lost >= 0 ? 'positive' : 'negative'),
@@ -65,6 +77,7 @@ function render() {
 function renderHistory() {
   const person = people.find(p => p.id === selected), root = $('history');
   root.replaceChildren(); root.hidden = !person;
+  renderHealth(person);
   if (!person) return;
   root.append(element('h3', `Sejarah · ${person.name}`));
   const table = element('table'), head = element('tr');
@@ -84,7 +97,7 @@ function renderHistory() {
   });
   root.append(remove);
 }
-for (const id of ['start-date', 'record-date']) { $(id).value = today(); $(id).max = today(); }
+for (const id of ['start-date', 'record-date', 'health-date']) { $(id).value = today(); $(id).max = today(); }
 $('participant-form').addEventListener('submit', event => {
   event.preventDefault();
   const name = $('name').value.trim(), weight = Number($('initial').value), date = $('start-date').value;
@@ -135,3 +148,48 @@ if (!hasSavedData && !storageBlocked) {
     }
   } catch { notice('Data TEFOC tidak dapat dimuatkan. Cuba muat semula atau import fail JSON.', true); }
 }
+
+function renderHealth(person) {
+  const log = $('health-log');
+  log.replaceChildren();
+  if (!person) { log.append(element('p', 'Pilih peserta untuk melihat sejarah dan mencatat kesihatan.', 'hint')); return; }
+  if (!person.health?.length) { log.append(element('p', 'Belum ada catatan kesihatan. Rekod berat terdahulu dipaparkan di atas.', 'hint')); return; }
+  [...person.health].sort((a, b) => b.date.localeCompare(a.date)).forEach(entry => {
+    const card = element('article', undefined, 'health-entry');
+    card.append(element('h3', entry.date));
+    const details = [];
+    if (entry.sleep !== null) details.push(`Tidur: ${number(entry.sleep)} jam`);
+    if (entry.activity !== null) details.push(`Aktiviti: ${entry.activity} minit`);
+    if (entry.water !== null) details.push(`Air: ${number(entry.water)} liter`);
+    if (details.length) card.append(element('p', details.join(' · ')));
+    if (entry.notes) card.append(element('p', entry.notes));
+    const edit = element('button', 'Sunting rekod', 'secondary'); edit.type = 'button';
+    edit.addEventListener('click', () => {
+      $('health-date').value = entry.date;
+      for (const id of ['sleep', 'activity', 'water']) $(id).value = entry[id] ?? '';
+      $('health-notes').value = entry.notes;
+      $('health-date').focus();
+    });
+    card.append(edit); log.append(card);
+  });
+}
+$('health-participant').addEventListener('change', () => {
+  selected = $('health-participant').value || null;
+  $('participant').value = selected || '';
+  $('health-form').reset(); $('health-date').value = today();
+  renderHistory();
+});
+$('health-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const person = people.find(p => p.id === $('health-participant').value);
+  if (!person) { notice('Pilih peserta untuk rekod kesihatan dahulu.', true); return; }
+  const entry = { date: $('health-date').value, notes: $('health-notes').value.trim() };
+  for (const id of ['sleep', 'activity', 'water']) entry[id] = $(id).value === '' ? null : Number($(id).value);
+  try {
+    const next = recordHealth(person, entry);
+    if (save(people.map(p => p.id === person.id ? next : p))) {
+      $('health-form').reset(); $('health-date').value = today();
+      notice(`Rekod kesihatan ${person.name} berjaya disimpan.`);
+    }
+  } catch (error) { notice(error.message, true); }
+});

@@ -10,6 +10,7 @@ export function validDate(value) {
 }
 export function validateParticipant(person) {
   if (person?.category !== undefined && !['Dewasa', 'Junior'].includes(person.category)) return false;
+  if (person?.health !== undefined && (!Array.isArray(person.health) || !person.health.every(validHealthEntry) || new Set(person.health.map(e => e.date)).size !== person.health.length)) return false;
   if (!person || typeof person.id !== 'string' || !person.id || typeof person.name !== 'string' || !person.name.trim() || person.name.length > 80) return false;
   return Array.isArray(person.entries) && person.entries.length > 0 && person.entries.every((entry, i, entries) =>
     validWeight(entry.weight) && validDate(entry.date) && (i === 0 || entries[i - 1].date < entry.date));
@@ -46,4 +47,21 @@ export function mergeImport(existing, incoming) {
     result.push(person);
   }
   return result;
+}
+
+export function validHealthEntry(entry) {
+  if (!entry || !validDate(entry.date) || typeof entry.notes !== 'string' || entry.notes.length > 1000) return false;
+  const limits = { sleep: 24, activity: 1440, water: 20 };
+  for (const [key, max] of Object.entries(limits)) {
+    if (entry[key] !== null && (!Number.isFinite(entry[key]) || entry[key] < 0 || entry[key] > max)) return false;
+  }
+  if (entry.activity !== null && !Number.isInteger(entry.activity)) return false;
+  return !!entry.notes.trim() || ['sleep', 'activity', 'water'].some(key => entry[key] !== null);
+}
+export function recordHealth(person, entry) {
+  if (!validHealthEntry(entry)) throw new Error('Semak tarikh dan nilai rekod. Isi sekurang-kurangnya satu butiran.');
+  const health = (person.health || []).filter(e => e.date !== entry.date);
+  health.push(entry);
+  health.sort((a, b) => a.date.localeCompare(b.date));
+  return { ...person, health };
 }
