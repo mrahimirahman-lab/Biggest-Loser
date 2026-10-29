@@ -9,6 +9,7 @@ export function validDate(value) {
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value && value <= today();
 }
 export function validateParticipant(person) {
+  if (person?.targetWeight !== undefined && (!validWeight(person.targetWeight) || person.category === 'Junior' || !(person.targetWeight < person.entries?.[0]?.weight))) return false;
   if (person?.height !== undefined && (!Number.isFinite(person.height) || person.height < 80 || person.height > 250)) return false;
   if (person?.category !== undefined && !['Dewasa', 'Junior'].includes(person.category)) return false;
   if (person?.health !== undefined && (!Array.isArray(person.health) || !person.health.every(validHealthEntry) || new Set(person.health.map(e => e.date)).size !== person.health.length)) return false;
@@ -29,6 +30,7 @@ export function recordWeight(person, date, weight) {
   if (!validDate(date)) throw new Error('Pilih tarikh yang sah, sehingga hari ini.');
   if (!validWeight(weight)) throw new Error('Berat mestilah antara 20 hingga 500 kg.');
   if (date < person.entries[0].date) throw new Error('Tarikh rekod tidak boleh mendahului tarikh mula.');
+  if (date === person.entries[0].date && person.targetWeight !== undefined && weight <= person.targetWeight) throw new Error('Berat awal baharu mesti melebihi sasaran. Kemas kini sasaran dalam Profile dahulu.');
   const entries = person.entries.filter(entry => entry.date !== date);
   entries.push({ date, weight });
   entries.sort((a, b) => a.date.localeCompare(b.date));
@@ -81,4 +83,20 @@ export function bmi(person, weight = metrics(person).current) {
   let category = value < 18.5 ? 'Kurang berat' : value < 25 ? 'Normal' : value < 30 ? 'Berlebihan berat' : 'Obesiti';
   if (person.category === 'Junior') category = 'Junior: perlukan penilaian umur & jantina';
   return { value, category };
+}
+
+export function targetProgress(person) {
+  if (!person?.targetWeight || person.category === 'Junior') return null;
+  const m = metrics(person);
+  const required = m.initial - person.targetWeight;
+  if (required <= 0) return null;
+  return Math.max(0, Math.min(100, m.lost / required * 100));
+}
+export function nextWeighIn(person) {
+  if (!person) return null;
+  const date = new Date(`${person.entries.at(-1).date}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + 7);
+  const next = date.toISOString().slice(0, 10);
+  const days = Math.round((Date.parse(`${next}T12:00:00Z`) - Date.parse(`${today()}T12:00:00Z`)) / 86400000);
+  return { date: next, days };
 }

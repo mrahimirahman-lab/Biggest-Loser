@@ -1,4 +1,4 @@
-import { today, validateParticipant, metrics, leaderboard, recordWeight, parseImport, mergeImport, recordHealth, bmi } from './model.js';
+import { today, validateParticipant, metrics, leaderboard, recordWeight, parseImport, mergeImport, recordHealth, bmi, targetProgress, nextWeighIn } from './model.js';
 const $ = id => document.getElementById(id);
 const key = 'biggest-loser:v1';
 let people = [];
@@ -7,6 +7,9 @@ let storageBlocked = false;
 let hasSavedData = false;
 let pendingAttachments = [];
 let attachmentsChanged = false;
+let carouselIndex = 0;
+let carouselTimer = null;
+let activeArchiveId = null;
 const labLabels = { glucose: 'Glukosa (mmol/L)', systolic: 'Sistolik (mmHg)', diastolic: 'Diastolik (mmHg)', totalCholesterol: 'Jumlah kolesterol (mmol/L)', hdl: 'HDL (mmol/L)', ldl: 'LDL (mmol/L)', uricAcid: 'Asid urik (µmol/L)', creatinine: 'Kreatinin (µmol/L)' };
 function notice(message, error = false) {
   $('notice').textContent = message;
@@ -62,7 +65,7 @@ function render() {
   $('export').disabled = people.length === 0;
   $('rankings').replaceChildren();
   const slots = Math.max(8, ...visible.map(p => p.entries.length - 1));
-  $('progress-head').replaceChildren(...['Peserta', 'Berat Awal', 'Terkini', ...Array.from({ length: slots }, (_, i) => `M${i + 1}`), 'Jumlah Turun'].map(label => element('th', label)));
+  $('progress-head').replaceChildren(...['Peserta', 'Berat Awal', 'Terkini', 'BMI Semasa', 'Kategori BMI', ...Array.from({ length: slots }, (_, i) => `M${i + 1}`), 'Jumlah Turun'].map(label => element('th', label)));
   $('progress-person').replaceChildren(new Option('Pilih peserta', ''));
   people.forEach(p => $('progress-person').add(new Option(p.name, p.id)));
   if (people.some(p => p.id === selected)) $('progress-person').value = selected;
@@ -88,7 +91,8 @@ function render() {
       if (entry) cell.append(element('small', entry.date));
       return cell;
     };
-    row.append(name, datedCell(p.entries[0]), datedCell(p.entries.at(-1)));
+    const b = bmi(p);
+    row.append(name, datedCell(p.entries[0]), datedCell(p.entries.at(-1)), element('td', b ? number(b.value) : 'Isi tinggi'), element('td', b?.category || 'Belum tersedia'));
     for (let index = 1; index <= slots; index++) row.append(datedCell(p.entries[index]));
     row.append(element('td', `${m.lost < 0 ? '+' : '−'}${number(Math.abs(m.lost))} kg`, m.lost >= 0 ? 'positive' : 'negative'));
     $('rankings').append(row);
@@ -263,7 +267,9 @@ $('search').addEventListener('input', render);
 function renderWeightChart(person) {
   $('weight-chart').hidden = !person;
   $('chart-content').replaceChildren();
-  if (!person) return;
+  if (person) $('chart-content').append(weightSVG(person));
+}
+function weightSVG(person) {
   const svgNS = 'http://www.w3.org/2000/svg';
   const svgElement = (tag, attrs, text) => {
     const node = document.createElementNS(svgNS, tag);
@@ -289,7 +295,7 @@ function renderWeightChart(person) {
     dot.append(svgElement('title', {}, `${entry.date}: ${number(entry.weight)} kg`)); svg.append(dot);
   });
   svg.append(svgElement('text', { x: 48, y: 180, fill: '#64748b', 'font-size': 10 }, person.entries[0].date), svgElement('text', { x: 468, y: 180, fill: '#64748b', 'font-size': 10, 'text-anchor': 'end' }, person.entries.at(-1).date));
-  $('chart-content').append(svg);
+  return svg;
 }
 
 function showPage() {
@@ -300,6 +306,7 @@ function showPage() {
   document.querySelectorAll('[data-page]').forEach(link => {
     if (link.dataset.page === id) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
   });
+  if (id === 'home') requestAnimationFrame(()=>updateCarousel(true));
 }
 addEventListener('hashchange', showPage);
 $('progress-person').addEventListener('change', () => {
@@ -312,6 +319,8 @@ $('progress-person').addEventListener('change', () => {
 });
 function renderBMI(person) {
   const root = $('bmi-status'); root.replaceChildren();
+  $('personal-loss').textContent = person ? `${number(metrics(person).lost)} kg` : '—';
+  $('personal-bmi').textContent = person && bmi(person) ? number(bmi(person).value) : '—';
   $('height').value = person?.height ?? '';
   if (!person) { root.textContent = 'Pilih peserta untuk melihat kemajuan dan BMI.'; return; }
   const result = bmi(person);
@@ -369,21 +378,42 @@ function renderArchives() {
       const download = element('button','Eksport arkib','secondary'); download.type='button';download.addEventListener('click',()=>downloadJSON(archive,`arkib-${archive.id}.json`));
       card.append(view,download);root.append(card);
     }
+    if (archives.length) showArchive(archives.find(a=>a.id===activeArchiveId) || archives[0]);
+    else { $('archive-detail').hidden=true; $('archive-detail').replaceChildren(); activeArchiveId=null; }
   } catch(error) { root.append(element('p',error.message,'hint')); }
 }
 function downloadJSON(value, name) {
   const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}));const link=element('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 function showArchive(archive) {
+  activeArchiveId = archive.id;
   const root=$('archive-detail');root.hidden=false;root.replaceChildren(element('h3',archive.name));
-  for (const group of ['Dewasa','Junior']) {
-    root.append(element('h4',group,'mt-5 font-semibold'));
-    for (const person of leaderboard(archive.people.filter(p=>(p.category||'Dewasa')===group))) {
-      const details=element('details'),summary=element('summary',`${person.name} · ${number(metrics(person).percent)}%`,'cursor-pointer py-3 text-sm');details.append(summary);
-      person.entries.forEach(e=>details.append(element('p',`${e.date}: ${number(e.weight)} kg`,'hint')));root.append(details);
-    }
+  root.append(element('p',`Keputusan kategori ${$('past-category').value} · tamat ${archive.end}`,'hint'));
+  const ranked=leaderboard(archive.people.filter(p=>(p.category||'Dewasa')===$('past-category').value));
+  const podium=element('div',undefined,'past-podium');
+  ranked.slice(0,3).forEach((person,index)=>{
+    const card=element('article',undefined,`past-place past-place-${index+1}`);
+    card.append(element('span',String(index+1),'medal'),element('h4',person.name),element('p',index===0?'Juara kategori':`Tempat ${index+1}`),element('strong',`${number(metrics(person).percent)}%`));podium.append(card);
+  });
+  root.append(podium,element('h4','Senarai penuh peserta','past-list-heading'),element('p','Klik nama untuk graf dan rekod mingguan.','hint'));
+  if(!ranked.length){root.append(element('p','Tiada peserta dalam kategori ini.','hint'));return;}
+  const wrapper=element('div',undefined,'archive-table-scroll'),table=element('table'),head=element('tr');
+  ['Peserta','Berat awal','Berat akhir','Penurunan'].forEach(label=>head.append(element('th',label)));
+  const thead=element('thead');thead.append(head);table.append(thead);const body=element('tbody');
+  for(const person of ranked){
+    const row=element('tr'),cell=element('td'),button=element('button',person.name,'person');button.type='button';button.addEventListener('click',()=>openPastChart(person,archive.name));cell.append(button);
+    const m=metrics(person);row.append(cell,element('td',`${number(m.initial)} kg`),element('td',`${number(m.current)} kg`),element('td',`${number(m.lost)} kg · ${number(m.percent)}%`));body.append(row);
   }
+  table.append(body);wrapper.append(table);root.append(wrapper);
 }
+function openPastChart(person, name) {
+  $('past-chart-title').textContent=`${person.name} · ${name}`;
+  const root=$('past-chart-content');root.replaceChildren(weightSVG(person));
+  const wrapper=element('div',undefined,'archive-table-scroll'),table=element('table'),head=element('tr');head.append(element('th','Tarikh'),element('th','Berat (kg)'));table.append(head);
+  person.entries.forEach(entry=>{const row=element('tr');row.append(element('td',entry.date),element('td',number(entry.weight)));table.append(row);});wrapper.append(table);root.append(wrapper);$('past-chart-dialog').showModal();
+}
+$('close-past-chart').addEventListener('click',()=>$('past-chart-dialog').close());
+$('past-category').addEventListener('change',renderArchives);
 $('archive-end').max=today();$('archive-end').value=today();
 $('archive-form').addEventListener('submit',event=>{
   event.preventDefault();
@@ -416,10 +446,11 @@ function renderHome() {
   $('home-podium').replaceChildren(...[...$('podium').children].map(node => node.cloneNode(true)));
   $('home-empty').hidden = ranked.length > 0;
   const session = currentSession();
-  $('session-button').textContent = session ? 'Logout' : 'Login';
+  $('session-button').textContent = session ? 'Log Keluar' : 'Log Masuk';
   $('session-button').setAttribute('aria-label', session ? `Logout ${session.name}` : 'Login peserta');
   for (const id of ['activity-person','profile-person','login-person']) fillPeople(id, $(id).value || session?.id || '');
   renderProfile();
+  renderSidebar();
   try { renderActivities(); } catch(error) { $('activity-gallery').replaceChildren(element('p',error.message,'hint')); }
   try { renderSponsors(); } catch(error) { $('sponsor-list').replaceChildren(element('p',error.message,'hint')); }
   const records = people.flatMap(person => person.entries.slice(1).map(entry => ({name:person.name,...entry}))).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
@@ -447,17 +478,26 @@ $('login-form').addEventListener('submit',event=>{
 function renderProfile() {
   const person=people.find(p=>p.id===$('profile-person').value), root=$('profile-summary');root.replaceChildren();
   $('profile-name').value=person?.name||'';$('profile-height').value=person?.height??'';
+  $('profile-target').value=person?.targetWeight??'';
+  $('profile-target').disabled=!person || person.category==='Junior';
+  $('profile-target-hint').textContent=person?.category==='Junior'?'Sasaran penurunan berat dewasa tidak digunakan untuk Junior.':'Sasaran peribadi dewasa; mestilah di bawah berat awal. Dapatkan panduan profesional jika perlu.';
   $('open-personal-progress').disabled=!person;
   if(!person){root.textContent='Pilih peserta atau gunakan Login untuk membuka profil.';return;}
   const m=metrics(person),result=bmi(person);
-  root.append(element('strong',person.name),element('p',`Kategori: ${person.category||'Dewasa'}`),element('p',`Berat awal ${number(m.initial)} kg → terkini ${number(m.current)} kg`),element('p',result?`BMI ${number(result.value)} · ${result.category}`:'Isi tinggi untuk melihat BMI.'),element('p',`${person.entries.length} rekod berat tersimpan`));
+  const heading=element('div',undefined,'profile-heading'),avatar=element('span',person.name.trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toLocaleUpperCase('ms'),'profile-avatar');
+  const identity=element('div');identity.append(element('strong',person.name),element('p',`${person.category||'Dewasa'} · ${person.entries.length} rekod berat`));heading.append(avatar,identity);root.append(heading);
+  const stats=element('div',undefined,'profile-stat-grid');
+  for(const [label,value] of [['Berat awal',`${number(m.initial)} kg`],['Terkini',`${number(m.current)} kg`],['Sasaran',person.targetWeight?`${number(person.targetWeight)} kg`:'Belum diisi']]){const card=element('div');card.append(element('small',label),element('strong',value));stats.append(card);}
+  root.append(stats,element('p',result?`BMI ${number(result.value)} · ${result.category}`:'Isi tinggi untuk melihat BMI.'));
+  const goal=targetProgress(person);if(goal!==null)root.append(element('p',`${number(goal)}% daripada sasaran peribadi dicapai.`));
 }
-$('profile-person').addEventListener('change',renderProfile);
+$('profile-person').addEventListener('change',()=>{renderProfile();renderSidebar();});
 $('profile-form').addEventListener('submit',event=>{
   event.preventDefault();const person=people.find(p=>p.id===$('profile-person').value);if(!person){notice('Pilih peserta dahulu.',true);return;}
   const name=$('profile-name').value.trim(),next={...person,name};
   if($('profile-height').value!=='')next.height=Number($('profile-height').value);else delete next.height;
-  if(!validateParticipant(next)){notice('Semak nama dan tinggi (80–250 cm).',true);return;}
+  if($('profile-target').value!=='' && person.category!=='Junior') next.targetWeight=Number($('profile-target').value);else delete next.targetWeight;
+  if(!validateParticipant(next)){notice('Semak nama, tinggi (80–250 cm) dan sasaran dewasa (20 kg hingga kurang daripada berat awal).',true);return;}
   if(people.some(p=>p.id!==person.id&&p.name.toLocaleLowerCase('ms')===name.toLocaleLowerCase('ms'))){notice('Nama peserta ini sudah digunakan.',true);return;}
   if(save(people.map(p=>p.id===person.id?next:p)))notice('Profil peserta dikemas kini.');
 });
@@ -467,7 +507,8 @@ $('open-personal-progress').addEventListener('click',()=>{
 });
 function renderActivities() {
   const root=$('activity-gallery');root.replaceChildren();const activities=readList('jom-kurus:activities:v1');
-  if(!activities.length){const empty=element('div',undefined,'gallery-empty');empty.append(element('strong','Aktiviti anda bermula di sini'),element('p','Kongsi gambar senaman, berjalan atau menu sihat. Tiada gambar peserta ditambah tanpa upload.'));root.append(empty);return;}
+  $('carousel-controls').hidden = activities.length === 0;
+  if(!activities.length){const empty=element('div',undefined,'gallery-empty');empty.append(element('strong','Aktiviti anda bermula di sini'),element('p','Kongsi gambar senaman, berjalan atau menu sihat. Tiada gambar peserta ditambah tanpa upload.'));root.append(empty);updateCarousel(true);return;}
   for(const activity of [...activities].reverse()){
     if(!activity || typeof activity.data!=='string' || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(activity.data))continue;
     const card=element('figure',undefined,'activity-card'),image=element('img');image.src=activity.data;image.alt=activity.caption;image.loading='lazy';
@@ -477,6 +518,7 @@ function renderActivities() {
       try{localStorage.setItem('jom-kurus:activities:v1',JSON.stringify(activities.filter(a=>a.id!==activity.id)));renderActivities();}catch{notice('Gagal memadam gambar.',true);}
     });card.append(remove);root.append(card);
   }
+  updateCarousel(true);
 }
 $('activity-form').addEventListener('submit',async event=>{
   event.preventDefault();const submit=$('activity-form').querySelector('button[type="submit"]');submit.disabled=true;
@@ -488,7 +530,7 @@ $('activity-form').addEventListener('submit',async event=>{
     const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Gagal membaca gambar.'));reader.readAsDataURL(file);});
     const activities=readList('jom-kurus:activities:v1');if(activities.length>=8)throw Error('Galeri sudah mempunyai 8 gambar. Padam gambar lama dahulu.');
     activities.push({id:crypto.randomUUID(),personId:person.id,caption,date:today(),data});
-    localStorage.setItem('jom-kurus:activities:v1',JSON.stringify(activities));$('activity-form').reset();renderActivities();notice('Gambar aktiviti berjaya disimpan.');
+    localStorage.setItem('jom-kurus:activities:v1',JSON.stringify(activities));$('activity-form').reset();carouselIndex=0;renderActivities();notice('Gambar aktiviti berjaya disimpan.');
   }catch(error){notice(error.name==='QuotaExceededError'?'Ruang pelayar penuh. Gambar belum disimpan.':error.message,true);}
   finally{submit.disabled=false;}
 });
@@ -506,4 +548,51 @@ $('sponsor-form').addEventListener('submit',event=>{
     const name=$('sponsor-name').value.trim(),raw=$('sponsor-url').value.trim();if(!name)throw Error('Isi nama penaja.');let url='';if(raw){const parsed=new URL(raw);if(!['https:','http:'].includes(parsed.protocol))throw Error('Gunakan URL https atau http.');url=parsed.href;}
     const sponsors=readList('jom-kurus:sponsors:v1');sponsors.push({id:crypto.randomUUID(),name,url});localStorage.setItem('jom-kurus:sponsors:v1',JSON.stringify(sponsors));$('sponsor-form').reset();renderSponsors();notice('Penaja disimpan.');
   }catch(error){notice(error.message,true);}
+});
+
+function renderSidebar() {
+  const session=currentSession(),person=session || people.find(p=>p.id===$('profile-person').value) || people.find(p=>p.id===selected);
+  $('sidebar-profile').hidden=!session;
+  const initials = p => p.name.trim().split(/\s+/).map(word=>word[0]).slice(0,2).join('').toLocaleUpperCase('ms');
+  if(session){$('sidebar-avatar').textContent=initials(session);$('sidebar-name').textContent=session.name;$('sidebar-category').textContent=`${session.category||'Dewasa'} · sesi aktif`;}
+  $('mini-avatar').textContent=person?initials(person):'?';$('mini-name').textContent=person?.name||'Pilih profil';$('mini-category').textContent=person?`${person.category||'Dewasa'} · ${session?'sesi aktif':'profil dipilih'}`:'Tiada sesi aktif';
+  $('sidebar-session').textContent=session?'Log Keluar':'Log Masuk';
+  const goal=person?targetProgress(person):null;
+  $('goal-progress').hidden=goal===null;$('goal-progress').value=goal??0;
+  $('goal-label').textContent=goal===null?'Tetapkan sasaran dewasa dalam Profile.':`Sasaran ${number(person.targetWeight)} kg · ${number(goal)}%`;
+  $('goal-detail').textContent=person?.category==='Junior'?'Pertumbuhan Junior memerlukan penilaian profesional.':person?`Berat terkini ${number(metrics(person).current)} kg`:'';
+  const next=nextWeighIn(person);
+  $('weigh-reminder-text').textContent=!next?'Pilih profil untuk melihat rekod.':next.days<0?`Rekod terakhir ${person.entries.at(-1).date}. Semak jadual cabaran.`:next.days===0?'Cadangan timbang: hari ini.':`${next.days} hari lagi · ${next.date}`;
+}
+$('sidebar-session').addEventListener('click',()=>$('session-button').click());
+function updateCarousel(reset=false) {
+  const cards=[...$('activity-gallery').querySelectorAll('.activity-card')];
+  carouselIndex=cards.length?Math.max(0,Math.min(carouselIndex,cards.length-1)):0;
+  $('carousel-controls').hidden=!cards.length;
+  if (cards.length < 2 && carouselTimer) { clearInterval(carouselTimer); carouselTimer=null; $('slide-play').textContent='Mainkan slaid'; $('slide-play').setAttribute('aria-pressed','false'); }
+  $('slide-prev').disabled=cards.length<2;$('slide-next').disabled=cards.length<2;$('slide-play').disabled=cards.length<2;
+  $('carousel-dots').replaceChildren();
+  cards.forEach((card,index)=>{
+    card.setAttribute('aria-label',`Gambar ${index+1} daripada ${cards.length}`);
+    const dot=element('button',undefined,'carousel-dot');dot.type='button';dot.setAttribute('aria-label',`Lihat gambar ${index+1}`);dot.setAttribute('aria-pressed',String(index===carouselIndex));dot.addEventListener('click',()=>{carouselIndex=index;updateCarousel();});$('carousel-dots').append(dot);
+  });
+  const gallery=$('activity-gallery');gallery.scrollTo({left:carouselIndex*gallery.clientWidth,behavior:reset||matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
+}
+function moveCarousel(delta) {
+  const count=$('activity-gallery').querySelectorAll('.activity-card').length;
+  if(!count)return;carouselIndex=(carouselIndex+delta+count)%count;updateCarousel();
+}
+$('slide-prev').addEventListener('click',()=>moveCarousel(-1));$('slide-next').addEventListener('click',()=>moveCarousel(1));
+$('slide-play').addEventListener('click',()=>{
+  if(carouselTimer){clearInterval(carouselTimer);carouselTimer=null;}
+  else carouselTimer=setInterval(()=>{if(!document.hidden && !$('page-home').hidden)moveCarousel(1);},5000);
+  $('slide-play').textContent=carouselTimer?'Jeda slaid':'Mainkan slaid';$('slide-play').setAttribute('aria-pressed',String(!!carouselTimer));
+});
+addEventListener('resize',()=>updateCarousel(true));
+
+$('activity-gallery').addEventListener('scrollend',()=>{
+  const gallery=$('activity-gallery'),count=gallery.querySelectorAll('.activity-card').length;
+  if(!count || !gallery.clientWidth)return;
+  carouselIndex=Math.max(0,Math.min(count-1,Math.round(gallery.scrollLeft/gallery.clientWidth)));
+  [...$('carousel-dots').children].forEach((dot,index)=>dot.setAttribute('aria-pressed',String(index===carouselIndex)));
 });

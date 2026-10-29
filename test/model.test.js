@@ -76,3 +76,24 @@ test('lab records and PDF attachments roundtrip; incomplete pressure and unsafe 
   assert.throws(()=>recordHealth(p,{...entry,labs:{glucose:-1}}));
   assert.equal(recordHealth(result,{...entry,attachments:[]}).health[0].attachments.length,0);
 });
+
+test('personal target progress uses actual loss, clamps bounds and excludes Junior', async () => {
+  const { targetProgress } = await import('../public/model.js');
+  const p = { ...person('Example', 100, 90), targetWeight: 80 };
+  assert.equal(targetProgress(p), 50);
+  assert.throws(() => recordWeight(p, '2025-01-01', 75));
+  assert.equal(validateParticipant(recordWeight(p, '2025-01-01', 110)), true);
+  assert.equal(validateParticipant(p), true);
+  assert.equal(targetProgress({ ...person('Example', 100, 105), targetWeight: 80 }), 0);
+  assert.equal(targetProgress({ ...person('Example', 100, 70), targetWeight: 80 }), 100);
+  assert.equal(targetProgress({ ...p, category: 'Junior' }), null);
+  assert.equal(validateParticipant({ ...p, targetWeight: 100 }), false);
+  assert.equal(validateParticipant({ ...p, category: 'Junior' }), false);
+  assert.equal(targetProgress(person('Example', 100, 90)), null);
+});
+test('weigh-in suggestion follows the latest actual date by seven days', async () => {
+  const { nextWeighIn } = await import('../public/model.js');
+  assert.equal(nextWeighIn(person('Example',100,90)).date, '2025-01-15');
+  assert.equal(nextWeighIn(null), null);
+  assert.ok(nextWeighIn(person('Example',100,90)).days < 0);
+});

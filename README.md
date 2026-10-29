@@ -100,3 +100,13 @@ Login ialah pemilihan profil dalam `sessionStorage`, bukan pengesahan akaun. Tia
 Sponsor membolehkan penganjur menyimpan nama dan pautan penaja setempat; tiada penaja rekaan dimasukkan. Notification memaparkan lima rekod berat bertarikh terkini daripada data pelayar; tiada push notification atau mesej dihantar.
 
 Galeri menerima PNG/JPG/WEBP sehingga 500 KB setiap gambar dan maksimum 8 gambar. Gambar diperiksa melalui dekoder imej pelayar sebelum disimpan. Nama peserta dan kapsyen dipaparkan bersama gambar; padam memerlukan pengesahan. Galeri (`jom-kurus:activities:v1`) dan penaja (`jom-kurus:sponsors:v1`) disimpan berasingan daripada eksport peserta dan belum mempunyai fungsi import/eksport tersendiri. Semua data setempat berkongsi had storan pelayar; kegagalan menyimpan dipaparkan tanpa menimpa rekod lama.
+
+## Reka bentuk rujukan kedua
+
+Navigasi berikon dan susun atur kandungan 1024px mengikuti HTML rujukan baharu. Ikon ialah SVG setempat, bukannya font/CDN luaran. Banner gim terdahulu dikekalkan. Kad profil kiri memaparkan peserta sesi sebenar dengan avatar huruf awal; tiada nama, e-mel, sasaran atau tarikh timbang contoh dimasukkan.
+
+Sasaran berat dewasa boleh diisi dalam Profile. Sasaran mestilah sekurang-kurangnya 20 kg dan di bawah berat awal. Bar kemajuan menggunakan `(berat awal - berat terkini) / (berat awal - sasaran)`, dihadkan kepada 0–100%. Sasaran kosong tidak menghasilkan peratus rekaan, dan sasaran penurunan berat dewasa tidak digunakan untuk Junior. Peringatan timbang mencadangkan tujuh hari selepas rekod terkini; jika cadangan sudah berlalu, tarikh rekod terakhir dan arahan semak jadual dipaparkan. Ini bukan tarikh pertandingan rasmi atau nasihat perubatan.
+
+Galeri kini berbentuk slaid dengan butang sebelumnya/seterusnya, titik pilihan, swipe dan main/jeda. Main automatik hanya bermula apabila dipilih pengguna dan berhenti bergerak semasa tab atau halaman Home tidak aktif. Gambar kekal daripada upload pengguna sahaja.
+
+Past Record memaparkan podium Top 3 mengikut kategori daripada arkib sebenar serta senarai penuh peserta. Klik nama untuk dialog graf berat dan tarikh/nilai lengkap. Graf menggunakan SVG setempat, termasuk sejarah yang tidak selang tepat tujuh hari. Penapis Dewasa/Junior memisahkan keputusan; arkib semasa peserta tidak diubah ketika dialog dibuka.
