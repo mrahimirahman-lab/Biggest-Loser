@@ -67,7 +67,11 @@ function render() {
   $('health-participant').replaceChildren(new Option('Pilih peserta', ''));
   visible.forEach(p => $('health-participant').add(new Option(p.name, p.id)));
   if (visible.some(p => p.id === selected)) $('health-participant').value = selected;
-  leaderboard(visible).forEach((p, i) => {
+  const query = $('search').value.trim().toLocaleLowerCase('ms');
+  const matches = ranked.filter(p => p.name.toLocaleLowerCase('ms').includes(query));
+  $('search-count').textContent = `${matches.length} daripada ${visible.length} peserta`;
+  matches.forEach(p => {
+    const i = ranked.findIndex(person => person.id === p.id);
     const m = metrics(p), row = element('tr'), name = element('td');
     const button = element('button', p.name, 'person');
     button.type = 'button';
@@ -90,6 +94,7 @@ function renderHistory() {
   const person = people.find(p => p.id === selected), root = $('history');
   root.replaceChildren(); root.hidden = !person;
   renderHealth(person);
+  renderWeightChart(person);
   if (!person) return;
   root.append(element('h3', `Sejarah · ${person.name}`));
   const table = element('table'), head = element('tr');
@@ -230,3 +235,36 @@ $('record-week').addEventListener('change', () => {
   $('weight').value = person?.entries.find(e => e.date === $('record-week').value)?.weight ?? '';
 });
 $('record-date').addEventListener('input', () => { $('record-week').value = ''; });
+
+$('search').addEventListener('input', render);
+function renderWeightChart(person) {
+  $('weight-chart').hidden = !person;
+  $('chart-content').replaceChildren();
+  if (!person) return;
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svgElement = (tag, attrs, text) => {
+    const node = document.createElementNS(svgNS, tag);
+    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value));
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+  const svg = svgElement('svg', { viewBox: '0 0 500 200', role: 'img', 'aria-label': `Graf berat ${person.name}: ${person.entries[0].weight} kg hingga ${person.entries.at(-1).weight} kg. Tarikh dan nilai penuh dalam jadual sejarah.` });
+  const values = person.entries.map(e => e.weight);
+  const low = Math.min(...values) - 1, high = Math.max(...values) + 1;
+  const dates = person.entries.map(e => Date.parse(`${e.date}T12:00:00Z`));
+  const range = dates.at(-1) - dates[0];
+  const x = index => range ? 48 + (dates[index] - dates[0]) / range * 420 : 258;
+  const y = value => 145 - (value - low) / (high - low) * 115;
+  for (let i = 0; i < 3; i++) {
+    const value = low + (high - low) * i / 2;
+    const lineY = y(value);
+    svg.append(svgElement('line', { x1: 44, x2: 474, y1: lineY, y2: lineY, stroke: '#e2e8f0' }), svgElement('text', { x: 0, y: lineY + 4, fill: '#64748b', 'font-size': 10 }, number(value)));
+  }
+  svg.append(svgElement('polyline', { points: person.entries.map((e, i) => `${x(i)},${y(e.weight)}`).join(' '), fill: 'none', stroke: '#0d9488', 'stroke-width': 3, 'stroke-linejoin': 'round' }));
+  person.entries.forEach((entry, i) => {
+    const dot = svgElement('circle', { cx: x(i), cy: y(entry.weight), r: 4, fill: '#0f766e' });
+    dot.append(svgElement('title', {}, `${entry.date}: ${number(entry.weight)} kg`)); svg.append(dot);
+  });
+  svg.append(svgElement('text', { x: 48, y: 180, fill: '#64748b', 'font-size': 10 }, person.entries[0].date), svgElement('text', { x: 468, y: 180, fill: '#64748b', 'font-size': 10, 'text-anchor': 'end' }, person.entries.at(-1).date));
+  $('chart-content').append(svg);
+}

@@ -4,7 +4,7 @@ Aplikasi web Bahasa Melayu untuk mengurus cabaran penurunan berat bersama pasuka
 
 ## Jalankan
 
-Memerlukan **Node.js 22 atau lebih baharu**. Tiada pakej luaran, pemasangan npm, pangkalan data atau API key diperlukan.
+Memerlukan **Node.js 22 atau lebih baharu**. Antaramuka menggunakan HTML, Tailwind CSS 4 dan JavaScript tulen. Tiada pangkalan data atau API key diperlukan. CSS siap bina disertakan supaya `npm start` boleh terus digunakan.
 
 ```sh
 npm start
@@ -55,4 +55,18 @@ Dalam Rekod kesihatan, pilih peserta dan simpan tidur (jam), aktiviti (minit), a
 
 Jadual M1–M8 menunjukkan turutan rekod selepas berat awal dan tarikh asal setiap rekod. Lebih lapan rekod akan menambah lajur secara automatik. Ini mengelakkan andaian bahawa semua penimbangan dibuat tepat setiap tujuh hari. Pilihan M dalam borang mengisi tarikh dan berat rekod sedia ada untuk suntingan. Slot baharu mencadangkan tarikh tujuh hari selepas tarikh mula bagi setiap nombor minggu; semak tarikh sebelum simpan, atau pilih tarikh manual. Tarikh akan datang tidak boleh disimpan. Gunakan skrol mendatar untuk melihat semua lajur jadual.
 
-Reka bentuk ini menggunakan CSS setempat; tiada kebergantungan pada Tailwind CDN atau Google Fonts. Data contoh dalam HTML rujukan tidak dimasukkan ke dalam peserta sebenar.
+Reka bentuk menggunakan Tailwind CSS yang dibina secara setempat; tiada kebergantungan runtime pada CDN atau Google Fonts. Data contoh dalam HTML rujukan tidak dimasukkan ke dalam peserta sebenar.
+
+## Pembangunan Tailwind CSS
+
+```sh
+npm ci
+npm run build
+npm run check
+npm test
+npm start
+```
+
+Ubah `src/styles.css` (sumber Tailwind dan gaya komponen) dan kelas utiliti dalam `public/index.html` / `public/app.js`. Jalankan `npm run build` untuk menjana semula `public/styles.css`; jangan edit fail CSS terjana secara terus. `npm run css:watch` membina semula gaya semasa pembangunan. Commit CSS terjana bersama sumber dan lockfile.
+
+Carian nama menapis jadual peserta sahaja; ringkasan kategori dan Top 5 kekal berdasarkan keseluruhan kategori. Klik nama peserta untuk graf berat mengikut tarikh sebenar, sejarah dan rekod kesihatan. Semua logik pengurusan data berjalan dalam Vanilla JS dengan localStorage. Ini prototaip setempat tanpa akaun atau pelayan pangkalan data bersama.
