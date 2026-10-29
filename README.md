@@ -36,3 +36,11 @@ npm test
 Ujian meliputi pengiraan kedudukan, kenaikan berat, rekod bertarikh lampau, penggantian tarikh sama, pengesahan tarikh dan data rosak. Untuk semakan manual: daftar dua peserta, rekod berat baharu, semak kedudukan dan sejarah, muat semula untuk menguji storan, dan cuba eksport/padam.
 
 Pelayan hanya menyajikan aset aplikasi yang disenaraikan secara jelas. Fail repositori dan fail konfigurasi tidak disajikan.
+
+## Import data
+
+Butang **Import data JSON** menerima format yang sama seperti eksport aplikasi. Import menambah peserta baharu sahaja; jika ID atau nama sudah wujud, seluruh import ditolak supaya rekod asal tidak ditimpa. Pilih kategori Dewasa atau Junior untuk melihat ringkasan, kedudukan dan merekod berat kumpulan tersebut. Eksport merangkumi kedua-dua kategori.
+
+Untuk dataset awal setempat, letakkan JSON dalam `local-data/tefoc-2020.json`. Fail ini diabaikan Git dan dimuatkan sekali secara automatik jika pelayar belum mempunyai data tersimpan. Pelayar yang sudah mempunyai data perlu menggunakan import JSON; data sedia ada tidak diganti secara automatik. Memadam semua peserta tidak akan mencetuskan import semula.
+
+Data Excel pengguna tidak disertakan dalam kod GitHub. Dataset setempat disajikan kepada pelayar yang boleh mengakses pelayan ini; jangan dedahkan pelayan kepada orang ramai jika dataset peribadi berada di dalamnya. Hentikan pelayan sebelum memindahkan fail tersebut ke hosting awam.

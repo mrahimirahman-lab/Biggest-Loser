@@ -9,6 +9,7 @@ export function validDate(value) {
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value && value <= today();
 }
 export function validateParticipant(person) {
+  if (person?.category !== undefined && !['Dewasa', 'Junior'].includes(person.category)) return false;
   if (!person || typeof person.id !== 'string' || !person.id || typeof person.name !== 'string' || !person.name.trim() || person.name.length > 80) return false;
   return Array.isArray(person.entries) && person.entries.length > 0 && person.entries.every((entry, i, entries) =>
     validWeight(entry.weight) && validDate(entry.date) && (i === 0 || entries[i - 1].date < entry.date));
@@ -30,4 +31,19 @@ export function recordWeight(person, date, weight) {
   entries.push({ date, weight });
   entries.sort((a, b) => a.date.localeCompare(b.date));
   return { ...person, entries };
+}
+
+export function parseImport(value) {
+  if (!Array.isArray(value) || !value.length || !value.every(validateParticipant) || new Set(value.map(p => p.id)).size !== value.length || new Set(value.map(p => p.name.trim().toLocaleLowerCase('ms'))).size !== value.length) throw new Error('Fail data tidak sah atau mempunyai peserta berulang.');
+  return value;
+}
+export function mergeImport(existing, incoming) {
+  parseImport(incoming);
+  const result = [...existing];
+  for (const person of incoming) {
+    const match = existing.find(p => p.id === person.id || p.name.trim().toLocaleLowerCase('ms') === person.name.trim().toLocaleLowerCase('ms'));
+    if (match) throw new Error('Peserta sudah wujud: ' + person.name + '. Tiada data ditimpa.');
+    result.push(person);
+  }
+  return result;
 }

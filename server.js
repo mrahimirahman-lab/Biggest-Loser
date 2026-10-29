@@ -6,6 +6,7 @@ const files = new Map([
   ['/styles.css', ['styles.css', 'text/css; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/model.js', ['model.js', 'text/javascript; charset=utf-8']],
+  ['/tefoc-data.json', ['../local-data/tefoc-2020.json', 'application/json; charset=utf-8']],
 ]);
 const port = Number(process.env.PORT || 3000);
 http.createServer(async (req, res) => {
@@ -23,5 +24,5 @@ http.createServer(async (req, res) => {
       'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
     });
     res.end(req.method === 'HEAD' ? undefined : body);
-  } catch { res.writeHead(500).end('Gagal memuatkan aplikasi'); }
+  } catch (error) { res.writeHead(error.code === 'ENOENT' ? 404 : 500).end('Gagal memuatkan aplikasi'); }
 }).listen(port, '0.0.0.0', () => console.log(`Biggest Loser berjalan pada port ${port}`));

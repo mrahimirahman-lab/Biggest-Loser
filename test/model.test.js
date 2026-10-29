@@ -29,3 +29,13 @@ test('stored data validation rejects corrupted and unordered records', () => {
   const p = person('Aina', 100, 95);
   p.entries.reverse(); assert.equal(validateParticipant(p), false);
 });
+
+test('JSON import validates category and never overwrites existing participants', async () => {
+  const { parseImport, mergeImport } = await import('../public/model.js');
+  const p = { ...person('Example', 80, 78), category: 'Junior' };
+  assert.equal(parseImport([p]).length, 1);
+  assert.throws(() => parseImport([{ ...p, category: 'invalid' }]));
+  assert.throws(() => parseImport([p, p]));
+  assert.throws(() => mergeImport([p], [p]));
+  assert.equal(mergeImport([], [p]).length, 1);
+});
