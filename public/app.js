@@ -1,3 +1,4 @@
+import { prepareActivityImage } from './activity-image.js';
 import { today, validateParticipant, metrics, leaderboard, recordWeight, parseImport, mergeImport, recordHealth, bmi, targetProgress, nextWeighIn } from './model.js';
 const $ = id => document.getElementById(id);
 const key = 'biggest-loser:v1';
@@ -525,14 +526,13 @@ $('activity-form').addEventListener('submit',async event=>{
   try{
     const person=people.find(p=>p.id===$('activity-person').value),file=$('activity-photo').files[0],caption=$('activity-caption').value.trim();
     if(!person||!caption)throw Error('Pilih peserta dan isi kapsyen.');
-    if(!file||file.size===0||file.size>512000||!['image/png','image/jpeg','image/webp'].includes(file.type))throw Error('Pilih gambar PNG/JPG/WEBP maksimum 500 KB.');
-    const bitmap=await createImageBitmap(file);bitmap.close();
-    const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Gagal membaca gambar.'));reader.readAsDataURL(file);});
+    submit.textContent='Memproses gambar…';
+    const image=await prepareActivityImage(file);
     const activities=readList('jom-kurus:activities:v1');if(activities.length>=8)throw Error('Galeri sudah mempunyai 8 gambar. Padam gambar lama dahulu.');
-    activities.push({id:crypto.randomUUID(),personId:person.id,caption,date:today(),data});
+    activities.push({id:crypto.randomUUID(),personId:person.id,caption,date:today(),...image,originalSize:file.size});
     localStorage.setItem('jom-kurus:activities:v1',JSON.stringify(activities));$('activity-form').reset();carouselIndex=0;renderActivities();notice('Gambar aktiviti berjaya disimpan.');
   }catch(error){notice(error.name==='QuotaExceededError'?'Ruang pelayar penuh. Gambar belum disimpan.':error.message,true);}
-  finally{submit.disabled=false;}
+  finally{submit.disabled=false;submit.textContent='Kongsi aktiviti';}
 });
 function renderSponsors(){
   const root=$('sponsor-list');root.replaceChildren();const sponsors=readList('jom-kurus:sponsors:v1');

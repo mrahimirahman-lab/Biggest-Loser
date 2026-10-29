@@ -99,7 +99,7 @@ Login ialah pemilihan profil dalam `sessionStorage`, bukan pengesahan akaun. Tia
 
 Sponsor membolehkan penganjur menyimpan nama dan pautan penaja setempat; tiada penaja rekaan dimasukkan. Notification memaparkan lima rekod berat bertarikh terkini daripada data pelayar; tiada push notification atau mesej dihantar.
 
-Galeri menerima PNG/JPG/WEBP sehingga 500 KB setiap gambar dan maksimum 8 gambar. Gambar diperiksa melalui dekoder imej pelayar sebelum disimpan. Nama peserta dan kapsyen dipaparkan bersama gambar; padam memerlukan pengesahan. Galeri (`jom-kurus:activities:v1`) dan penaja (`jom-kurus:sponsors:v1`) disimpan berasingan daripada eksport peserta dan belum mempunyai fungsi import/eksport tersendiri. Semua data setempat berkongsi had storan pelayar; kegagalan menyimpan dipaparkan tanpa menimpa rekod lama.
+Galeri menerima PNG/JPG/WEBP sehingga 10 MB setiap gambar dan maksimum 8 gambar. Gambar diperiksa melalui dekoder imej pelayar, dikecilkan kepada maksimum 1600 piksel pada sisi panjang (tanpa membesarkan imej kecil), dan dimampatkan kepada JPEG sehingga 256 KB sebelum disimpan. Jika perlu, resolusi dikurangkan lagi supaya memenuhi had simpanan. Nisbah gambar dikekalkan; latar lutsinar menjadi putih. Fail asal tidak disimpan. Nama peserta dan kapsyen dipaparkan bersama gambar; padam memerlukan pengesahan. Galeri (`jom-kurus:activities:v1`) dan penaja (`jom-kurus:sponsors:v1`) disimpan berasingan daripada eksport peserta dan belum mempunyai fungsi import/eksport tersendiri. Semua data setempat berkongsi had storan pelayar; kegagalan menyimpan dipaparkan tanpa menimpa rekod lama.
 
 ## Reka bentuk rujukan kedua
 
