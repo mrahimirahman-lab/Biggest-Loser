@@ -54,3 +54,25 @@ test('health records validate optional values and replace same-date entries with
   assert.throws(() => recordHealth(p, { date: entry.date, sleep: null, water: null, activity: null, notes: '' }));
   assert.equal(validateParticipant({ ...p, health: [{ ...entry, water: -1 }] }), false);
 });
+
+test('BMI uses latest weight and height, preserves absent height and avoids adult categories for Junior', async () => {
+  const { bmi } = await import('../public/model.js');
+  const p = { ...person('Example', 90, 80), height: 180 };
+  assert.ok(Math.abs(bmi(p).value - 24.691358) < 0.00001);
+  assert.equal(bmi(p).category, 'Normal');
+  assert.equal(bmi(person('Example',80,79)), null);
+  assert.match(bmi({ ...p, category: 'Junior' }).category, /Junior/);
+  assert.equal(validateParticipant({ ...p, height: 0 }), false);
+});
+test('lab records and PDF attachments roundtrip; incomplete pressure and unsafe attachment formats rejected', async () => {
+  const { recordHealth } = await import('../public/model.js');
+  const p = person('Example',80,78);
+  const entry = { date:'2025-01-10',sleep:null,activity:null,water:null,notes:'',labs:{glucose:5.5,systolic:120,diastolic:80,hdl:1.2,ldl:2.6,uricAcid:350,creatinine:85},glucoseContext:'Puasa',attachments:[{name:'result.pdf',type:'application/pdf',size:5,data:'data:application/pdf;base64,JVBERi0='}] };
+  const result = recordHealth(p,entry);
+  assert.equal(validateParticipant(JSON.parse(JSON.stringify(result))),true);
+  assert.throws(()=>recordHealth(p,{...entry,labs:{systolic:120}}));
+  assert.throws(()=>recordHealth(p,{...entry,labs:{systolic:80,diastolic:120}}));
+  assert.throws(()=>recordHealth(p,{...entry,attachments:[{...entry.attachments[0],type:'text/html'}]}));
+  assert.throws(()=>recordHealth(p,{...entry,labs:{glucose:-1}}));
+  assert.equal(recordHealth(result,{...entry,attachments:[]}).health[0].attachments.length,0);
+});

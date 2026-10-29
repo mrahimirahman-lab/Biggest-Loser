@@ -1,10 +1,13 @@
-import { today, validateParticipant, metrics, leaderboard, recordWeight, parseImport, mergeImport, recordHealth } from './model.js';
+import { today, validateParticipant, metrics, leaderboard, recordWeight, parseImport, mergeImport, recordHealth, bmi } from './model.js';
 const $ = id => document.getElementById(id);
 const key = 'biggest-loser:v1';
 let people = [];
 let selected = null;
 let storageBlocked = false;
 let hasSavedData = false;
+let pendingAttachments = [];
+let attachmentsChanged = false;
+const labLabels = { glucose: 'Glukosa (mmol/L)', systolic: 'Sistolik (mmHg)', diastolic: 'Diastolik (mmHg)', totalCholesterol: 'Jumlah kolesterol (mmol/L)', hdl: 'HDL (mmol/L)', ldl: 'LDL (mmol/L)', uricAcid: 'Asid urik (µmol/L)', creatinine: 'Kreatinin (µmol/L)' };
 function notice(message, error = false) {
   $('notice').textContent = message;
   $('notice').className = error ? 'error' : '';
@@ -60,6 +63,9 @@ function render() {
   $('rankings').replaceChildren();
   const slots = Math.max(8, ...visible.map(p => p.entries.length - 1));
   $('progress-head').replaceChildren(...['Peserta', 'Berat Awal', 'Terkini', ...Array.from({ length: slots }, (_, i) => `M${i + 1}`), 'Jumlah Turun'].map(label => element('th', label)));
+  $('progress-person').replaceChildren(new Option('Pilih peserta', ''));
+  people.forEach(p => $('progress-person').add(new Option(p.name, p.id)));
+  if (people.some(p => p.id === selected)) $('progress-person').value = selected;
   const previous = $('participant').value;
   $('participant').replaceChildren(new Option('Pilih peserta', ''));
   visible.forEach(p => $('participant').add(new Option(p.name, p.id)));
@@ -75,7 +81,7 @@ function render() {
     const m = metrics(p), row = element('tr'), name = element('td');
     const button = element('button', p.name, 'person');
     button.type = 'button';
-    button.addEventListener('click', () => { selected = p.id; $('health-form').reset(); $('health-date').value = today(); $('participant').value = p.id; renderWeekOptions(); $('health-participant').value = p.id; renderHistory(); $('rekod').scrollIntoView({ block: 'start' }); });
+    button.addEventListener('click', () => { selected = p.id; pendingAttachments = []; attachmentsChanged = false; renderPendingFiles(); $('health-form').reset(); $('health-date').value = today(); $('participant').value = p.id; renderWeekOptions(); $('health-participant').value = p.id; renderHistory(); location.hash = 'progress'; });
     name.append(element('span', String(i + 1).padStart(2, '0'), 'rank'), button);
     const datedCell = entry => {
       const cell = element('td', entry ? `${number(entry.weight)} kg` : '—');
@@ -89,20 +95,23 @@ function render() {
   });
   renderHistory();
   renderWeekOptions();
+  renderArchives();
 }
 function renderHistory() {
   const person = people.find(p => p.id === selected), root = $('history');
   root.replaceChildren(); root.hidden = !person;
   renderHealth(person);
   renderWeightChart(person);
+  renderBMI(person);
   if (!person) return;
   root.append(element('h3', `Sejarah · ${person.name}`));
   const table = element('table'), head = element('tr');
-  head.append(element('th', 'Tarikh'), element('th', 'Berat'));
+  head.append(element('th', 'Tarikh'), element('th', 'Berat'), element('th', 'BMI'), element('th', 'Kategori BMI'));
   const thead = element('thead'); thead.append(head); table.append(thead);
   const body = element('tbody');
   [...person.entries].reverse().forEach(entry => {
-    const row = element('tr'); row.append(element('td', entry.date), element('td', `${number(entry.weight)} kg`)); body.append(row);
+    const b = bmi(person, entry.weight);
+    const row = element('tr'); row.append(element('td', entry.date), element('td', `${number(entry.weight)} kg`), element('td', b ? number(b.value) : 'Isi tinggi'), element('td', b?.category || 'Belum tersedia')); body.append(row);
   });
   table.append(body); root.append(table);
   const remove = element('button', 'Padam peserta dan semua rekod', 'secondary danger');
@@ -144,6 +153,7 @@ $('export').addEventListener('click', () => {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
 render();
+showPage();
 
 $('category').addEventListener('change', () => { selected = null; render(); });
 $('import-data').addEventListener('change', async event => {
@@ -179,11 +189,19 @@ function renderHealth(person) {
     if (entry.activity !== null) details.push(`Aktiviti: ${entry.activity} minit`);
     if (entry.water !== null) details.push(`Air: ${number(entry.water)} liter`);
     if (details.length) card.append(element('p', details.join(' · ')));
+    for (const [key, value] of Object.entries(entry.labs || {})) card.append(element('p', `${labLabels[key]}: ${number(value)}`));
+    if (entry.glucoseContext) card.append(element('p', `Glukosa: ${entry.glucoseContext}`));
+    for (const file of entry.attachments || []) {
+      const link = element('a', `Muat turun: ${file.name}`, 'attachment'); link.href = file.data; link.download = file.name; card.append(link);
+    }
     if (entry.notes) card.append(element('p', entry.notes));
     const edit = element('button', 'Sunting rekod', 'secondary'); edit.type = 'button';
     edit.addEventListener('click', () => {
       $('health-date').value = entry.date;
       for (const id of ['sleep', 'activity', 'water']) $(id).value = entry[id] ?? '';
+      for (const id of Object.keys(labLabels)) $(id).value = entry.labs?.[id] ?? '';
+      $('glucose-context').value = entry.glucoseContext || '';
+      pendingAttachments = [...(entry.attachments || [])]; attachmentsChanged = true; renderPendingFiles();
       $('health-notes').value = entry.notes;
       $('health-date').focus();
     });
@@ -194,18 +212,22 @@ $('health-participant').addEventListener('change', () => {
   selected = $('health-participant').value || null;
   $('participant').value = selected || '';
   $('health-form').reset(); $('health-date').value = today();
+  pendingAttachments = []; attachmentsChanged = false; renderPendingFiles();
   renderHistory();
 });
 $('health-form').addEventListener('submit', event => {
   event.preventDefault();
   const person = people.find(p => p.id === $('health-participant').value);
   if (!person) { notice('Pilih peserta untuk rekod kesihatan dahulu.', true); return; }
-  const entry = { date: $('health-date').value, notes: $('health-notes').value.trim() };
+  const existing = person.health?.find(e => e.date === $('health-date').value);
+  const entry = { date: $('health-date').value, notes: $('health-notes').value.trim(), labs: {}, glucoseContext: $('glucose-context').value, attachments: attachmentsChanged ? [...pendingAttachments] : [...(existing?.attachments || [])] };
+  for (const id of Object.keys(labLabels)) if ($(id).value !== '') entry.labs[id] = Number($(id).value);
   for (const id of ['sleep', 'activity', 'water']) entry[id] = $(id).value === '' ? null : Number($(id).value);
   try {
     const next = recordHealth(person, entry);
     if (save(people.map(p => p.id === person.id ? next : p))) {
       $('health-form').reset(); $('health-date').value = today();
+      pendingAttachments = []; attachmentsChanged = false; renderPendingFiles();
       notice(`Rekod kesihatan ${person.name} berjaya disimpan.`);
     }
   } catch (error) { notice(error.message, true); }
@@ -268,3 +290,106 @@ function renderWeightChart(person) {
   svg.append(svgElement('text', { x: 48, y: 180, fill: '#64748b', 'font-size': 10 }, person.entries[0].date), svgElement('text', { x: 468, y: 180, fill: '#64748b', 'font-size': 10, 'text-anchor': 'end' }, person.entries.at(-1).date));
   $('chart-content').append(svg);
 }
+
+function showPage() {
+  const id = ['progress','overall','nutrition','health','past'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'progress';
+  document.querySelectorAll('[data-view]').forEach(view => { view.hidden = view.dataset.view !== id; });
+  document.querySelectorAll('[data-page]').forEach(link => {
+    if (link.dataset.page === id) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
+  });
+}
+addEventListener('hashchange', showPage);
+$('progress-person').addEventListener('change', () => {
+  selected = $('progress-person').value || null;
+  $('health-form').reset(); $('health-date').value = today(); pendingAttachments = []; attachmentsChanged = false; renderPendingFiles();
+  const person = people.find(p => p.id === selected);
+  if (person) $('category').value = person.category || 'Dewasa';
+  render();
+  $('participant').value = selected || ''; renderWeekOptions();
+});
+function renderBMI(person) {
+  const root = $('bmi-status'); root.replaceChildren();
+  $('height').value = person?.height ?? '';
+  if (!person) { root.textContent = 'Pilih peserta untuk melihat kemajuan dan BMI.'; return; }
+  const result = bmi(person);
+  root.append(element('strong', result ? `BMI ${number(result.value)}` : 'Tinggi belum diisi'), element('p', result?.category || 'Masukkan tinggi untuk mengira BMI semasa.'), element('p', `Berat terkini: ${number(metrics(person).current)} kg · ${person.entries.at(-1).date}`));
+}
+$('height-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const height = Number($('height').value), person = people.find(p => p.id === selected);
+  if (!person) { notice('Pilih peserta dahulu.', true); return; }
+  if (height < 80 || height > 250 || !Number.isFinite(height)) { notice('Tinggi mestilah 80–250 cm.', true); return; }
+  if (save(people.map(p => p.id === person.id ? { ...p, height } : p))) notice('Tinggi disimpan dan BMI dikemas kini.');
+});
+function renderPendingFiles() {
+  $('pending-files').replaceChildren();
+  pendingAttachments.forEach((file, index) => {
+    const row = element('p', file.name + ' '), remove = element('button', 'Buang lampiran baharu', 'secondary'); remove.type = 'button';
+    remove.addEventListener('click', () => { pendingAttachments.splice(index, 1); attachmentsChanged = true; renderPendingFiles(); }); row.append(remove); $('pending-files').append(row);
+  });
+}
+$('lab-files').addEventListener('change', async event => {
+  try {
+    const files = [...event.target.files];
+    if (files.length > 2) throw Error('Maksimum 2 fail setiap rekod.');
+    const converted = [];
+    for (const file of files) {
+      if (file.size === 0 || file.size > 1048576 || !['application/pdf','image/png','image/jpeg','image/webp'].includes(file.type)) throw Error('Pilih PDF, PNG, JPG atau WEBP, maksimum 1 MB setiap fail.');
+      const bytes = new Uint8Array(await file.slice(0,12).arrayBuffer());
+      const starts = expected => expected.every((b,i) => bytes[i] === b);
+      const valid = file.type === 'application/pdf' ? starts([37,80,68,70,45]) : file.type === 'image/png' ? starts([137,80,78,71,13,10,26,10]) : file.type === 'image/jpeg' ? starts([255,216,255]) : starts([82,73,70,70]) && bytes[8]===87 && bytes[9]===69 && bytes[10]===66 && bytes[11]===80;
+      if (!valid) throw Error('Kandungan fail tidak sepadan dengan format PDF/gambar.');
+      const data = await new Promise((resolve,reject) => { const reader = new FileReader(); reader.onload=()=>resolve(reader.result); reader.onerror=()=>reject(Error('Gagal membaca fail.')); reader.readAsDataURL(file); });
+      converted.push({ name:file.name, type:file.type, size:file.size, data });
+    }
+    pendingAttachments = converted; attachmentsChanged = true; renderPendingFiles();
+  } catch(error) { notice(error.message,true); }
+  event.target.value = '';
+});
+function archiveData() {
+  const raw = localStorage.getItem('jom-kurus:archives:v1');
+  if (!raw) return [];
+  const archives = JSON.parse(raw);
+  if (!Array.isArray(archives) || !archives.every(a => a && typeof a.id==='string' && typeof a.name==='string' && Array.isArray(a.people) && a.people.every(validateParticipant))) throw Error('Arkib tersimpan tidak sah. Data tidak ditimpa.');
+  return archives;
+}
+function renderArchives() {
+  const root = $('archive-list'); root.replaceChildren();
+  try {
+    const archives = archiveData();
+    const tefoc = people.filter(p => p.id.startsWith('tefoc-2020-')).map(p => ({...p, entries: p.entries.filter(e=> e.date >= '2020-11-01' && e.date <= '2020-12-15')})).filter(p=>p.entries.length);
+    if (tefoc.length) archives.unshift({id:'tefoc-source',name:'TEFOC 2020',end:'2020-12-15',people:tefoc});
+    if (!archives.length) root.append(element('p','Belum ada cabaran diarkibkan.','hint'));
+    for (const archive of archives) {
+      const card = element('article',undefined,'archive-card'); card.append(element('h3',archive.name),element('p',`Tamat: ${archive.end} · ${archive.people.length} peserta${archive.id==='tefoc-source' ? ' · Berdasarkan rekod TEFOC yang tersedia' : ''}`));
+      const view = element('button','Lihat keputusan','secondary'); view.type='button'; view.addEventListener('click',()=>showArchive(archive));
+      const download = element('button','Eksport arkib','secondary'); download.type='button';download.addEventListener('click',()=>downloadJSON(archive,`arkib-${archive.id}.json`));
+      card.append(view,download);root.append(card);
+    }
+  } catch(error) { root.append(element('p',error.message,'hint')); }
+}
+function downloadJSON(value, name) {
+  const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}));const link=element('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function showArchive(archive) {
+  const root=$('archive-detail');root.hidden=false;root.replaceChildren(element('h3',archive.name));
+  for (const group of ['Dewasa','Junior']) {
+    root.append(element('h4',group,'mt-5 font-semibold'));
+    for (const person of leaderboard(archive.people.filter(p=>(p.category||'Dewasa')===group))) {
+      const details=element('details'),summary=element('summary',`${person.name} · ${number(metrics(person).percent)}%`,'cursor-pointer py-3 text-sm');details.append(summary);
+      person.entries.forEach(e=>details.append(element('p',`${e.date}: ${number(e.weight)} kg`,'hint')));root.append(details);
+    }
+  }
+}
+$('archive-end').max=today();$('archive-end').value=today();
+$('archive-form').addEventListener('submit',event=>{
+  event.preventDefault();
+  try {
+    const name=$('archive-name').value.trim(),end=$('archive-end').value;
+    if (!name || !/^\d{4}-\d{2}-\d{2}$/.test(end) || end>today()) throw Error('Isi nama dan tarikh tamat yang sah.');
+    const snapshot=people.map(p=>({...p,entries:p.entries.filter(e=>e.date<=end),health:(p.health||[]).filter(e=>e.date<=end)})).filter(p=>p.entries.length);
+    if (!snapshot.length) throw Error('Tiada rekod untuk diarkibkan pada tarikh ini.');
+    const archives=archiveData();archives.push({id:crypto.randomUUID(),name,end,people:JSON.parse(JSON.stringify(snapshot))});
+    localStorage.setItem('jom-kurus:archives:v1',JSON.stringify(archives));renderArchives();notice('Keputusan cabaran disalin ke arkib. Rekod semasa dikekalkan.');
+  } catch(error){notice(error.message,true);}
+});

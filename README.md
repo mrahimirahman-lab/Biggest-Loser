@@ -70,3 +70,19 @@ npm start
 Ubah `src/styles.css` (sumber Tailwind dan gaya komponen) dan kelas utiliti dalam `public/index.html` / `public/app.js`. Jalankan `npm run build` untuk menjana semula `public/styles.css`; jangan edit fail CSS terjana secara terus. `npm run css:watch` membina semula gaya semasa pembangunan. Commit CSS terjana bersama sumber dan lockfile.
 
 Carian nama menapis jadual peserta sahaja; ringkasan kategori dan Top 5 kekal berdasarkan keseluruhan kategori. Klik nama peserta untuk graf berat mengikut tarikh sebenar, sejarah dan rekod kesihatan. Semua logik pengurusan data berjalan dalam Vanilla JS dengan localStorage. Ini prototaip setempat tanpa akaun atau pelayan pangkalan data bersama.
+
+## Menu aplikasi dan BMI
+
+Menu sisi menyediakan lima paparan: Progress Anda, Progress keseluruhan, Tips Pemakanan dan Kesihatan, Rekod Kesihatan, dan Rekod Cabaran Lepas. Menu menjadi bar boleh skrol mendatar pada telefon. Nama peserta dalam jadual keseluruhan membuka halaman kemajuan peribadi dengan graf dan sejarah mingguan.
+
+Isi tinggi (80–250 cm) dalam Progress Anda. BMI = berat kg / (tinggi meter)^2, dengan julat dewasa umum WHO: bawah 18.5 kurang berat, 18.5 hingga bawah 25 normal, 25 hingga bawah 30 berlebihan berat, 30 ke atas obesiti. Nilai dipaparkan tanpa mengandaikan tinggi yang tiada. Untuk Junior, kategori dewasa tidak digunakan; penilaian memerlukan umur, jantina dan panduan profesional. BMI bukan diagnosis. Kategori sejarah menggunakan tinggi yang kini disimpan.
+
+## Bacaan makmal dan lampiran
+
+Rekod kesihatan menyimpan glukosa (mmol/L; konteks puasa/rawak/selepas makan), sistolik/diastolik (mmHg), jumlah kolesterol, HDL dan LDL (mmol/L), asid urik dan kreatinin (µmol/L). Bacaan boleh dikosongkan jika belum diuji. Tekanan darah memerlukan kedua-dua nilai dan sistolik melebihi diastolik. Tiada tafsiran makmal, diagnosis atau penukaran unit automatik; ikut unit label dan rujuk profesional kesihatan.
+
+Upload menerima maksimum dua fail PDF, PNG, JPG atau WEBP, 1 MB setiap fail, dengan pemeriksaan jenis dan tandatangan fail. Fail disimpan sebagai data dalam localStorage bersama rekod peserta, boleh dimuat turun semula, disunting atau dibuang melalui Sunting rekod. Import/eksport peserta turut membawa lampiran. Fail tidak dihantar ke pelayan atau dibaca secara automatik untuk mengisi bacaan. Had ruang pelayar boleh menyebabkan simpanan gagal; aplikasi mengekalkan rekod asal dan memaparkan ralat. Gunakan peranti sendiri dan eksport sandaran; ini prototaip setempat tanpa kawalan akaun atau penyegerakan.
+
+## Cabaran lepas
+
+Rekod TEFOC 2020 yang tersedia dipaparkan berasingan berdasarkan tarikh 1 November–15 Disember 2020. Paparan ini berasal daripada data peserta semasa dalam pelayar; simpan arkib untuk salinan tetap. Borang arkib menyalin keputusan semua peserta hingga tarikh tamat yang dipilih (termasuk rekod kesihatan sehingga tarikh tersebut), tanpa memadam rekod semasa. Arkib tersimpan di kunci localStorage berasingan `jom-kurus:archives:v1`. Pilih Lihat keputusan dan klik nama peserta untuk membuka rekod mingguan. Eksport arkib menghasilkan JSON cabaran berasingan; fail arkib bukan format import peserta dan pemulihan arkib melalui UI belum disediakan.

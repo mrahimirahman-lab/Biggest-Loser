@@ -9,6 +9,7 @@ export function validDate(value) {
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value && value <= today();
 }
 export function validateParticipant(person) {
+  if (person?.height !== undefined && (!Number.isFinite(person.height) || person.height < 80 || person.height > 250)) return false;
   if (person?.category !== undefined && !['Dewasa', 'Junior'].includes(person.category)) return false;
   if (person?.health !== undefined && (!Array.isArray(person.health) || !person.health.every(validHealthEntry) || new Set(person.health.map(e => e.date)).size !== person.health.length)) return false;
   if (!person || typeof person.id !== 'string' || !person.id || typeof person.name !== 'string' || !person.name.trim() || person.name.length > 80) return false;
@@ -56,7 +57,12 @@ export function validHealthEntry(entry) {
     if (entry[key] !== null && (!Number.isFinite(entry[key]) || entry[key] < 0 || entry[key] > max)) return false;
   }
   if (entry.activity !== null && !Number.isInteger(entry.activity)) return false;
-  return !!entry.notes.trim() || ['sleep', 'activity', 'water'].some(key => entry[key] !== null);
+  if (entry.labs !== undefined && (!entry.labs || typeof entry.labs !== 'object' || Object.entries(entry.labs).some(([key, value]) => !['glucose','systolic','diastolic','totalCholesterol','hdl','ldl','uricAcid','creatinine'].includes(key) || !Number.isFinite(value) || value <= 0))) return false;
+  if (entry.glucoseContext !== undefined && !['', 'Puasa', 'Rawak', 'Selepas makan'].includes(entry.glucoseContext)) return false;
+  if (entry.attachments !== undefined && (!Array.isArray(entry.attachments) || entry.attachments.length > 2 || !entry.attachments.every(validAttachment))) return false;
+  if ((entry.labs?.systolic === undefined) !== (entry.labs?.diastolic === undefined)) return false;
+  if (entry.labs?.systolic !== undefined && entry.labs.systolic <= entry.labs.diastolic) return false;
+  return !!entry.notes.trim() || ['sleep', 'activity', 'water'].some(key => entry[key] !== null) || Object.keys(entry.labs || {}).length > 0 || !!entry.attachments?.length;
 }
 export function recordHealth(person, entry) {
   if (!validHealthEntry(entry)) throw new Error('Semak tarikh dan nilai rekod. Isi sekurang-kurangnya satu butiran.');
@@ -64,4 +70,15 @@ export function recordHealth(person, entry) {
   health.push(entry);
   health.sort((a, b) => a.date.localeCompare(b.date));
   return { ...person, health };
+}
+
+export function validAttachment(file) {
+  return !!file && typeof file.name === 'string' && file.name.length <= 255 && file.name.length > 0 && ['application/pdf','image/png','image/jpeg','image/webp'].includes(file.type) && Number.isInteger(file.size) && file.size > 0 && file.size <= 1048576 && typeof file.data === 'string' && file.data.length <= 1400000 && file.data.startsWith(`data:${file.type};base64,`) && /^[A-Za-z0-9+/]+={0,2}$/.test(file.data.split(',')[1]);
+}
+export function bmi(person, weight = metrics(person).current) {
+  if (!person.height) return null;
+  const value = weight / (person.height / 100) ** 2;
+  let category = value < 18.5 ? 'Kurang berat' : value < 25 ? 'Normal' : value < 30 ? 'Berlebihan berat' : 'Obesiti';
+  if (person.category === 'Junior') category = 'Junior: perlukan penilaian umur & jantina';
+  return { value, category };
 }
